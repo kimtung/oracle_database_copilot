@@ -224,3 +224,53 @@ WHERE s.type = 'USER'
   AND s.last_call_et >= :min_seconds
 ORDER BY s.last_call_et DESC
 """
+
+# ── Single Session Detail ─────────────────────────────────────────────────────
+
+SESSION_DETAIL = """
+SELECT
+    s.sid,
+    s.serial#                           AS serial,
+    s.username,
+    s.status,
+    s.sql_id,
+    s.prev_sql_id,
+    s.module,
+    s.action,
+    s.machine,
+    s.program,
+    s.osuser,
+    s.logon_time,
+    s.last_call_et                      AS elapsed_seconds,
+    s.blocking_session,
+    s.blocking_session_status,
+    s.event                             AS wait_event,
+    s.wait_time,
+    s.seconds_in_wait,
+    s.state,
+    s.row_wait_obj#                     AS row_wait_obj,
+    s.row_wait_row#                     AS row_wait_row
+FROM v$session s
+WHERE s.sid = :sid
+  AND s.serial# = :serial
+"""
+
+# ── Session Wait Details ──────────────────────────────────────────────────────
+
+SESSION_WAITS = """
+SELECT
+    event,
+    wait_class,
+    state,
+    wait_time_micro                     AS wait_time_us,
+    time_remaining_micro                AS time_remaining_us,
+    seconds_in_wait,
+    p1text,
+    p1,
+    p2text,
+    p2,
+    p3text,
+    p3
+FROM v$session_wait
+WHERE sid = :sid
+"""

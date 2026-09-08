@@ -1,4 +1,4 @@
-"""MCP tools — session.py: get_active_sessions, get_blocking_sessions, get_long_running_sessions."""
+"""MCP tools — session.py: 5 session analysis tools."""
 
 from __future__ import annotations
 
@@ -8,12 +8,12 @@ from oracle_mcp.security.audit import audit_context
 
 async def get_active_sessions(min_elapsed_sec: int = 0) -> list[dict]:
     """
-    Return all active USER sessions with elapsed time >= *min_elapsed_sec*.
+    Return all active USER sessions with elapsed time >= min_elapsed_sec.
 
     Parameters
     ----------
     min_elapsed_sec : int
-        Minimum LAST_CALL_ET threshold in seconds (default 0 → all active).
+        Minimum LAST_CALL_ET in seconds (default 0 → all active).
 
     Sources: V$SESSION (type='USER', status != 'INACTIVE')
     """
@@ -24,14 +24,60 @@ async def get_active_sessions(min_elapsed_sec: int = 0) -> list[dict]:
         return [r.model_dump(mode="json") for r in results]
 
 
+async def get_session(sid: int, serial: int) -> dict | None:
+    """
+    Return detailed information for a specific session (SID + SERIAL#).
+
+    Parameters
+    ----------
+    sid : int
+        Oracle session ID.
+    serial : int
+        Oracle session serial number.
+
+    Sources: V$SESSION
+    """
+    args = {"sid": sid, "serial": serial}
+    async with audit_context(tool="get_session", args=args):
+        from oracle_mcp.oracle.queries import sql_queries as Q
+        from oracle_mcp.oracle.repositories.base import BaseRepository
+
+        class _Repo(BaseRepository):
+            pass
+
+        repo = _Repo()
+        return await repo._fetchone(Q.SESSION_DETAIL, {"sid": sid, "serial": serial})
+
+
+async def get_session_waits(sid: int) -> list[dict]:
+    """
+    Return current wait event details for a specific session.
+
+    Includes event name, wait class, wait parameters (P1/P2/P3),
+    and microsecond-precision timing.
+
+    Sources: V$SESSION_WAIT
+    """
+    args = {"sid": sid}
+    async with audit_context(tool="get_session_waits", args=args):
+        from oracle_mcp.oracle.queries import sql_queries as Q
+        from oracle_mcp.oracle.repositories.base import BaseRepository
+
+        class _Repo(BaseRepository):
+            pass
+
+        repo = _Repo()
+        return await repo._fetchall(Q.SESSION_WAITS, {"sid": sid})
+
+
 async def get_blocking_sessions() -> dict:
     """
     Detect blocking session chains and return the full blocker→blocked tree.
 
     Returns a summary with:
-    - ``blocking_chains``: list of blocker sessions, each with their blocked sessions
-    - ``total_blocked``: total number of sessions being blocked
-    - ``max_wait_seconds``: longest current wait in the blocking chains
+    - blocking_chains: list of blocker sessions with their blocked sessions
+    - total_blocked: total number of sessions being blocked
+    - max_wait_seconds: longest current wait in the blocking chains
 
     Sources: V$SESSION (self-join on BLOCKING_SESSION)
     """
@@ -44,7 +90,7 @@ async def get_blocking_sessions() -> dict:
 
 async def get_long_running_sessions(min_minutes: int = 60) -> list[dict]:
     """
-    Return active sessions whose elapsed time exceeds *min_minutes*.
+    Return active sessions whose elapsed time exceeds min_minutes.
 
     Parameters
     ----------
