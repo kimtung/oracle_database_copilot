@@ -97,19 +97,21 @@ Phase 5 (1-2 tuần)
 ### 4.1 oracle-mcp-server — Tất cả 32 Tools
 
 **Week 1:**
-- [ ] `tools/sql.py`: `get_top_sql`, `get_sql_statistics`, `get_sql_wait_events`, `get_sql_execution_context`
-- [ ] `tools/ash.py`: `get_ash_sample`, `get_ash_sql_activity`
-- [ ] `tools/awr.py`: `get_awr_snapshot`, `get_awr_sql_stats`
-- [ ] `oracle/repositories/sql_repo.py` với Oracle queries
-- [ ] `oracle/repositories/awr_repo.py`
+- [x] `tools/sql.py`: `get_top_sql`, `get_sql_statistics`, `get_sql_wait_events`, `get_sql_execution_context`
+- [x] `tools/ash.py`: `get_ash_sample`, `get_ash_sql_activity`
+- [x] `tools/awr.py`: `get_awr_snapshot`, `get_awr_sql_stats`
+- [x] `oracle/repositories/sql_repo.py` với Oracle queries
+- [x] `oracle/repositories/awr_repo.py`, `ash_repo.py`
 
 **Week 2:**
-- [ ] `tools/session.py`: 5 session tools
-- [ ] `tools/plan.py`: `get_sql_plan`, `get_sql_plan_history`
-- [ ] `tools/object.py`: 6 object/code tools
-- [ ] `tools/storage.py`: 11 storage/job/health tools
-- [ ] Full audit system
-- [ ] Oracle permission grants script (`grants.sql`)
+- [x] `tools/session.py`: 5 session tools (get_session, get_session_waits added)
+- [x] `tools/plan.py`: `get_sql_plan`, `get_sql_plan_history`
+- [x] `tools/object.py`: 6 object/code tools
+- [x] `tools/storage.py`: 11 storage/job/health tools
+- [x] Full audit system (`security/audit.py` + `sanitizer.py`)
+- [x] Oracle permission grants script (`docs/grants.sql`)
+- [x] MCP SDK 2.x migration (`MCPServer` + `@mcp.tool()` decorators)
+- [x] `tests/conftest.py` — fake Oracle env for unit tests
 
 **Week 3 (nếu cần):**
 - [ ] Integration tests với Oracle test instance
