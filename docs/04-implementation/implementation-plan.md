@@ -58,15 +58,18 @@ Phase 5 (1-2 tuần)
 ### 3.1 oracle-mcp-server
 
 **Tasks:**
-- [ ] Khởi tạo Python project với `pyproject.toml`
-- [ ] Cài đặt `python-oracledb` thin mode
-- [ ] Implement `OracleConnectionPool` với async pool
-- [ ] Implement `AuditContext` context manager
-- [ ] MCP server entry point (`server.py`)
-- [ ] 3 tools đầu tiên: `get_database_info`, `get_top_sql`, `get_active_sessions`
-- [ ] Unit tests với mock Oracle
-- [ ] Dockerfile
-- [ ] README với setup instructions
+- [x] Khởi tạo Python project với `pyproject.toml`
+- [x] Cài đặt `python-oracledb` thin mode
+- [x] Implement `OracleConnectionPool` với async pool (`oracle/connection.py`)
+- [x] Implement `AuditContext` context manager (`security/audit.py`)
+- [x] MCP server entry point (`server.py`) — 6 tools registered
+- [x] 6 tools: `get_database_info`, `get_top_sql`, `get_sql_statistics`, `get_active_sessions`, `get_blocking_sessions`, `get_long_running_sessions`
+- [x] Unit tests với mock Oracle (`tests/unit/test_phase0_tools.py`)
+- [x] Dockerfile
+- [x] README với setup instructions + Claude Desktop / Cursor config
+- [x] `.env.example`
+- [x] `security/sanitizer.py` — credential masking
+- [x] `models/response_models.py` — Pydantic output contracts
 
 **Success Criteria:**
 > `get_database_info` tool trả về database version và instance info từ Oracle thật.
