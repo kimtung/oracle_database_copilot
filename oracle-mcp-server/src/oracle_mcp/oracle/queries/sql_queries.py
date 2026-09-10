@@ -130,7 +130,7 @@ FETCH FIRST :limit ROWS ONLY
 SQL_STATISTICS = """
 SELECT
     s.sql_id,
-    SUBSTR(s.sql_fulltext, 1, 4000)     AS sql_text,
+    DBMS_LOB.SUBSTR(s.sql_fulltext, 4000, 1) AS sql_text,
     s.executions,
     ROUND(s.elapsed_time / 1e6, 3)      AS elapsed_time_sec,
     ROUND(s.cpu_time / 1e6, 3)          AS cpu_time_sec,
