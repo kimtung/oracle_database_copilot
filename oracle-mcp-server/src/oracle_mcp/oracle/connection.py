@@ -31,7 +31,7 @@ async def get_pool() -> oracledb.AsyncConnectionPool:
             s.oracle_pool_min,
             s.oracle_pool_max,
         )
-        _pool = await oracledb.create_pool_async(
+        _pool = oracledb.create_pool_async(
             user=s.oracle_user,
             password=s.oracle_password,
             dsn=s.oracle_dsn,

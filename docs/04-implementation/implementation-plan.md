@@ -77,15 +77,15 @@ Phase 5 (1-2 tuần)
 ### 3.2 db-copilot
 
 **Tasks:**
-- [ ] Khởi tạo Python project với `pyproject.toml`
-- [ ] FastAPI app factory với lifespan
-- [ ] PostgreSQL async setup (asyncpg + SQLAlchemy)
-- [ ] Alembic migrations setup
-- [ ] Domain models: Evidence, Incident, DiagnosisResult
-- [ ] Settings với Pydantic Settings (env vars)
-- [ ] Health check endpoint: `GET /api/v1/health`
-- [ ] Docker Compose (api + postgres)
-- [ ] CI/CD pipeline skeleton (GitHub Actions)
+- [x] Khởi tạo Python project với `pyproject.toml`
+- [x] FastAPI app factory với lifespan
+- [x] PostgreSQL async setup (asyncpg + SQLAlchemy)
+- [x] Alembic migrations setup
+- [x] Domain models: Evidence, Incident, DiagnosisResult
+- [x] Settings với Pydantic Settings (env vars)
+- [x] Health check endpoint: `GET /api/v1/health`
+- [x] Docker Compose (api + postgres)
+- [x] CI/CD pipeline skeleton (GitHub Actions)
 
 **Success Criteria:**
 > `GET /api/v1/health` trả về 200 với PostgreSQL connection status.

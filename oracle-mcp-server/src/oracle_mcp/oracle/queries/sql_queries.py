@@ -31,8 +31,8 @@ SELECT
     disk_reads,
     rows_processed,
     plan_hash_value,
-    module,
-    action,
+    NULL                                AS module,
+    NULL                                AS action,
     last_active_time
 FROM v$sqlstats
 WHERE executions > 0
@@ -52,8 +52,8 @@ SELECT
     disk_reads,
     rows_processed,
     plan_hash_value,
-    module,
-    action,
+    NULL                                AS module,
+    NULL                                AS action,
     last_active_time
 FROM v$sqlstats
 WHERE executions > 0
@@ -73,8 +73,8 @@ SELECT
     disk_reads,
     rows_processed,
     plan_hash_value,
-    module,
-    action,
+    NULL                                AS module,
+    NULL                                AS action,
     last_active_time
 FROM v$sqlstats
 WHERE executions > 0
@@ -94,8 +94,8 @@ SELECT
     disk_reads,
     rows_processed,
     plan_hash_value,
-    module,
-    action,
+    NULL                                AS module,
+    NULL                                AS action,
     last_active_time
 FROM v$sqlstats
 WHERE executions > 0
@@ -115,8 +115,8 @@ SELECT
     disk_reads,
     rows_processed,
     plan_hash_value,
-    module,
-    action,
+    NULL                                AS module,
+    NULL                                AS action,
     last_active_time
 FROM v$sqlstats
 WHERE executions > 0

@@ -1,5 +1,5 @@
 # 📌 SESSION STATE — Oracle DB Copilot
-> Cập nhật lần cuối: 2026-09-08 15:44 (GMT+7)
+> Cập nhật lần cuối: 2026-09-10 15:35 (GMT+7)
 
 ---
 
@@ -25,7 +25,7 @@
 | Project | Thư mục | Mô tả |
 |---|---|---|
 | `oracle-mcp-server` | `d:\2026\oracle_ai\oracle-mcp-server\` | MCP server, read-only Oracle gateway, 32 tools |
-| `db-copilot` | `d:\2026\oracle_ai\db-copilot\` | FastAPI app, PostgreSQL, AI engines (**chưa làm**) |
+| `db-copilot` | `d:\2026\oracle_ai\db-copilot\` | FastAPI app, PostgreSQL, AI engines (Foundation DONE) |
 
 ---
 
@@ -105,6 +105,52 @@ oracle-mcp-server/
 - `Phase 1 — all 32 MCP tools, MCP SDK 2.x, unit tests green`
 - `docs: update README with all 32 tools, project structure, security model`
 
+### db-copilot (Phase 0 — Section 3.2 DONE)
+
+**Tech stack:**
+- Python 3.13, FastAPI, Uvicorn
+- PostgreSQL async with SQLAlchemy 2.0 (asyncpg)
+- Alembic async migrations
+- Pydantic v2 domain models & Pydantic-Settings
+
+**Files đã tạo:**
+```
+db-copilot/
+├── pyproject.toml                          ← build config, deps
+├── .env.example                            ← template env vars
+├── Dockerfile                              ← python:3.12-slim
+├── docker-compose.yml                      ← api + postgres
+├── alembic.ini                             ← Alembic migration config
+├── README.md
+├── alembic/
+│   ├── env.py                              ← async migration environment
+│   ├── script.py.mako
+│   └── versions/
+│       └── 001_initial_schema.py           ← initial PostgreSQL tables & indexes
+├── src/db_copilot/
+│   ├── main.py                             ← app entrypoint & CLI runner
+│   ├── config/settings.py                  ← Pydantic Settings
+│   ├── domain/
+│   │   ├── enums.py                        ← Severity, IncidentCategory, EvidenceType...
+│   │   └── models/
+│   │       ├── evidence.py                 ← Evidence, EvidencePackage
+│   │       ├── incident.py                 ← Incident, IncidentSummary, IncidentDetail
+│   │       └── diagnosis.py                ← DiagnosisResult, Recommendation, Hypothesis
+│   ├── db/
+│   │   ├── schema.py                       ← SQLAlchemy Declarative Base & Tables
+│   │   └── session.py                      ← Async engine, sessionmaker, ping
+│   └── api/
+│       ├── app.py                          ← FastAPI app factory with lifespan
+│       ├── deps.py                         ← get_db_session dependency
+│       └── routes/
+│           └── health.py                   ← GET /api/v1/health (DB connectivity check)
+└── tests/
+    ├── conftest.py                         ← async client & db mocks
+    └── unit/test_health.py                 ← 3 unit tests ✅ ALL PASSED
+```
+
+- CI/CD workflow: `.github/workflows/ci.yml` (multi-job lint & test cho cả 2 projects)
+
 ### Tài liệu (docs/)
 ```
 docs/
@@ -132,24 +178,7 @@ docs/
 
 ### Implementation Plan — theo thứ tự ưu tiên
 
-#### Mục 3.2 — db-copilot Foundation ← **NEXT ACTION**
-> File: `d:\2026\oracle_ai\docs\04-implementation\implementation-plan.md` dòng ~75-91
-
-- [ ] Khởi tạo Python project với `pyproject.toml`
-- [ ] FastAPI app factory với lifespan
-- [ ] PostgreSQL async setup (asyncpg + SQLAlchemy)
-- [ ] Alembic migrations setup
-- [ ] Domain models: `Evidence`, `Incident`, `DiagnosisResult`
-- [ ] Settings với Pydantic Settings (env vars)
-- [ ] Health check endpoint: `GET /api/v1/health`
-- [ ] Docker Compose (api + postgres)
-- [ ] CI/CD pipeline skeleton (GitHub Actions)
-
-**Success Criteria:** `GET /api/v1/health` trả về 200 với PostgreSQL connection status.
-
----
-
-#### Mục 4.2 — db-copilot MCP Client & Evidence Collection
+#### Mục 4.2 — db-copilot MCP Client & Evidence Collection ← **NEXT ACTION**
 - [ ] `OracleMcpClient` — gọi oracle-mcp-server qua MCP protocol
 - [ ] `SqlCollector`, `SessionCollector`, `StorageCollector`
 - [ ] `EvidenceNormalizer`

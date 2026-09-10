@@ -49,11 +49,10 @@ TEMP_USAGE = """
 SELECT
     tf.tablespace_name,
     SUM(tf.bytes)                       AS total_bytes,
-    SUM(ts.bytes_used)                  AS used_bytes,
-    SUM(tf.bytes) - SUM(ts.bytes_used)  AS free_bytes,
-    ROUND(SUM(ts.bytes_used) / NULLIF(SUM(tf.bytes), 0) * 100, 2) AS used_pct
+    SUM(tf.user_bytes)                  AS used_bytes,
+    SUM(tf.bytes) - SUM(tf.user_bytes)  AS free_bytes,
+    ROUND(SUM(tf.user_bytes) / NULLIF(SUM(tf.bytes), 0) * 100, 2) AS used_pct
 FROM dba_temp_files tf
-JOIN v$tempstat ts ON tf.file_id = ts.file#
 GROUP BY tf.tablespace_name
 """
 
@@ -164,9 +163,9 @@ SELECT
     job_type,
     state,
     enabled,
-    last_start_date,
-    last_run_duration,
-    next_run_date,
+    TO_CHAR(last_start_date, 'YYYY-MM-DD"T"HH24:MI:SS')   AS last_start_date,
+    TO_CHAR(last_run_duration)                           AS last_run_duration,
+    TO_CHAR(next_run_date, 'YYYY-MM-DD"T"HH24:MI:SS')    AS next_run_date,
     failure_count,
     run_count,
     schedule_name
@@ -178,11 +177,11 @@ SCHEDULER_JOB_HISTORY = """
 SELECT
     owner,
     job_name,
-    log_date,
+    TO_CHAR(log_date, 'YYYY-MM-DD"T"HH24:MI:SS')          AS log_date,
     status,
-    error#                              AS error_code,
-    actual_start_date,
-    run_duration,
+    error#                                                AS error_code,
+    TO_CHAR(actual_start_date, 'YYYY-MM-DD"T"HH24:MI:SS') AS actual_start_date,
+    TO_CHAR(run_duration)                                 AS run_duration,
     additional_info
 FROM dba_scheduler_job_run_details
 WHERE job_name = :job_name
@@ -196,11 +195,11 @@ FAILED_JOBS = """
 SELECT
     owner,
     job_name,
-    log_date,
+    TO_CHAR(log_date, 'YYYY-MM-DD"T"HH24:MI:SS')          AS log_date,
     status,
-    error#                              AS error_code,
-    actual_start_date,
-    run_duration,
+    error#                                                AS error_code,
+    TO_CHAR(actual_start_date, 'YYYY-MM-DD"T"HH24:MI:SS') AS actual_start_date,
+    TO_CHAR(run_duration)                                 AS run_duration,
     additional_info
 FROM dba_scheduler_job_run_details
 WHERE status != 'SUCCEEDED'
