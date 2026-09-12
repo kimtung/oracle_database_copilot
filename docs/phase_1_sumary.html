@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Báo Cáo Tổng Kết Phase 1 — MCP Tools & Evidence Engine | Oracle DB Copilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #07090e;
+      --bg-secondary: #0d121d;
+      --bg-card: rgba(17, 24, 39, 0.7);
+      --bg-card-hover: rgba(26, 36, 56, 0.8);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(56, 189, 248, 0.25);
+      
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      
+      --accent-cyan: #38bdf8;
+      --accent-emerald: #10b981;
+      --accent-violet: #8b5cf6;
+      --accent-amber: #f59e0b;
+      
+      --gradient-cyan: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+      --gradient-emerald: linear-gradient(135deg, #34d399 0%, #059669 100%);
+      --gradient-card: linear-gradient(145deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      padding: 2.5rem 1.5rem;
+      min-height: 100vh;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.07) 0%, transparent 40%),
+        radial-gradient(circle at 85% 25%, rgba(139, 92, 246, 0.08) 0%, transparent 45%);
+      background-attachment: fixed;
+    }
+
+    .container { max-width: 1240px; margin: 0 auto; }
+
+    header {
+      background: var(--gradient-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      padding: 2.5rem;
+      margin-bottom: 2.5rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+    }
+
+    header::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, #38bdf8, #8b5cf6, #10b981);
+    }
+
+    .header-badge-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .badge-success {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-info {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .pulse-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+    }
+
+    h1 {
+      font-size: 2.25rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-desc {
+      color: var(--text-secondary);
+      font-size: 1.05rem;
+      max-width: 850px;
+    }
+
+    /* ── Metrics Grid ── */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 1.5rem;
+      transition: all 0.3s ease;
+    }
+
+    .metric-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--border-accent);
+      box-shadow: 0 12px 24px -10px rgba(56, 189, 248, 0.15);
+    }
+
+    .metric-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .metric-value {
+      font-size: 2.1rem;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.2;
+    }
+
+    .metric-sub {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-top: 0.5rem;
+    }
+
+    /* ── Executive Summary Highlight Card ── */
+    .summary-highlight-card {
+      background: linear-gradient(145deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 20px;
+      padding: 2.25rem;
+      margin-bottom: 2.5rem;
+      box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+
+    .summary-highlight-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; width: 4px; height: 100%;
+      background: var(--gradient-cyan);
+    }
+
+    .summary-highlight-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 1rem;
+    }
+
+    .summary-highlight-title {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #ffffff;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .summary-block {
+      background: rgba(13, 18, 29, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 1.25rem;
+      transition: all 0.2s ease;
+    }
+
+    .summary-block:hover {
+      border-color: rgba(56, 189, 248, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .summary-block-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .summary-block-name {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+
+    .summary-file-link {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.1);
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      text-decoration: none;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .summary-items-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .summary-items-list li {
+      font-size: 0.84rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      position: relative;
+      padding-left: 1.25rem;
+    }
+
+    .summary-items-list li::before {
+      content: '•';
+      position: absolute;
+      left: 0.25rem;
+      color: var(--accent-cyan);
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+
+    /* ── Tab System ── */
+    .tab-nav {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 0.75rem;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-secondary);
+      padding: 0.6rem 1.2rem;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .tab-btn.active {
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--accent-cyan);
+      border-color: var(--border-accent);
+    }
+
+    .tab-pane { display: none; animation: fadeIn 0.3s ease; }
+    .tab-pane.active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .card-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 1.5rem;
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.5rem;
+    }
+
+    pre.code-block {
+      background: #04060a;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      overflow-x: auto;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 3.5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Header Section -->
+    <header>
+      <div class="header-badge-row">
+        <div class="badge badge-success">
+          <span class="pulse-dot"></span>
+          PHASE 1 COMPLETED
+        </div>
+        <div class="badge badge-info">FULL 32 MCP TOOLS</div>
+        <div class="badge badge-info">EVIDENCE ENGINE</div>
+      </div>
+      <h1>Oracle DB Copilot — Phase 1: MCP Gateway & Evidence Engine</h1>
+      <p class="header-desc">
+        Hoàn thiện toàn bộ 32 công cụ MCP quan sát Oracle (SQL, ASH, AWR, Sessions, Plan, Schema, Storage),
+        và xây dựng Evidence Engine trong db-copilot: MCP Gateway, Collectors, Normalizer, Baseline Engine lọc nhiễu 2-sigma, và Scheduler chạy nền định kỳ.
+      </p>
+    </header>
+
+    <!-- Key Metrics -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-title">Tiến Độ Phase 1</div>
+        <div class="metric-value" style="color: #34d399;">100%</div>
+        <div class="metric-sub">Hoàn thành cả 8/8 tasks</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">Oracle MCP Tools</div>
+        <div class="metric-value" style="color: #38bdf8;">32 / 32</div>
+        <div class="metric-sub">7 nhóm công cụ quan sát</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">Collectors Định Kỳ</div>
+        <div class="metric-value" style="color: #a78bfa;">3 Collectors</div>
+        <div class="metric-sub">SQL, Session, Storage (5m/lần)</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">Baseline Engine</div>
+        <div class="metric-value" style="color: #f59e0b;">μ ± 2σ</div>
+        <div class="metric-sub">Lọc nhiễu, tính Mean/P50/P95</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">Unit Tests Passed</div>
+        <div class="metric-value" style="color: #34d399;">26 / 26</div>
+        <div class="metric-sub">100% Green (Evidence suite)</div>
+      </div>
+    </div>
+
+    <!-- 🌟 Tóm tắt kết quả thực hiện Phase 1 -->
+    <div class="summary-highlight-card">
+      <div class="summary-highlight-header">
+        <div class="summary-highlight-title">
+          <span>🌟 Tóm tắt kết quả thực hiện Phase 1</span>
+        </div>
+        <div class="badge badge-success">Phase 1 — Core Milestones</div>
+      </div>
+      
+      <div class="summary-grid">
+        <!-- 1. 32 Oracle MCP Tools -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">1. Đủ 32 Oracle MCP Tools</span>
+            <a class="summary-file-link" href="../oracle-mcp-server/src/oracle_mcp/server.py">server.py</a>
+          </div>
+          <ul class="summary-items-list">
+            <li><strong>SQL (4):</strong> <code>get_top_sql</code>, <code>get_sql_statistics</code>, <code>get_sql_wait_events</code>, <code>get_sql_execution_context</code>.</li>
+            <li><strong>ASH (2):</strong> <code>get_ash_sample</code>, <code>get_ash_sql_activity</code>.</li>
+            <li><strong>AWR (2):</strong> <code>get_awr_snapshot</code>, <code>get_awr_sql_stats</code>.</li>
+            <li><strong>Session (5):</strong> <code>get_active_sessions</code>, <code>get_session</code>, <code>get_session_waits</code>, <code>get_blocking_sessions</code>, <code>get_long_running_sessions</code>.</li>
+            <li><strong>Plan (2):</strong> <code>get_sql_plan</code>, <code>get_sql_plan_history</code>.</li>
+            <li><strong>Object (6):</strong> <code>get_object_source</code>, <code>get_object_metadata</code>, <code>get_object_arguments</code>, <code>get_object_dependencies</code>, <code>get_dependency_graph</code>, <code>get_invalid_objects</code>.</li>
+            <li><strong>Storage (11):</strong> Tablespace, Datafile, Segment, Temp, Undo, Redo, Sysstat, Scheduler Jobs.</li>
+          </ul>
+        </div>
+
+        <!-- 2. OracleMcpClient -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">2. OracleMcpClient Gateway</span>
+            <a class="summary-file-link" href="../db-copilot/src/db_copilot/mcp/client.py">client.py</a>
+          </div>
+          <ul class="summary-items-list">
+            <li>Giao tiếp IPC qua <code>stdio</code> với tiến trình <code>oracle-mcp-server</code>.</li>
+            <li>Gửi lệnh và nhận kết quả JSON-RPC chuẩn MCP SDK <code>ClientSession</code>.</li>
+            <li>Tự động đo thời gian phản hồi (<code>duration_ms</code>), bắt lỗi và ném <code>McpClientError</code>.</li>
+            <li>Tách bạch hoàn toàn backend db-copilot khỏi driver Oracle.</li>
+          </ul>
+        </div>
+
+        <!-- 3. Evidence Normalizer -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">3. Evidence Normalizer</span>
+            <a class="summary-file-link" href="../db-copilot/src/db_copilot/evidence/normalizers/evidence_normalizer.py">evidence_normalizer.py</a>
+          </div>
+          <ul class="summary-items-list">
+            <li>Chuẩn hóa số liệu thô từ Oracle thành đối tượng domain <code>Evidence</code> có cấu trúc.</li>
+            <li>Xử lý đa dạng: SQL Regression, Cây khóa chặn (Blocking Chain), Cảnh báo dung lượng Tablespace, Job lỗi, Object Invalid.</li>
+            <li>Gán đúng mức độ nghiêm trọng (<code>Severity</code>) và gắn cờ giả thuyết sơ bộ (<code>supports_hypothesis</code>).</li>
+          </ul>
+        </div>
+
+        <!-- 4. Data Collectors -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">4. Bộ Ba Data Collectors</span>
+            <a class="summary-file-link" href="../db-copilot/src/db_copilot/evidence/collectors/">collectors/</a>
+          </div>
+          <ul class="summary-items-list">
+            <li><code>SqlCollector</code>: Kéo Top SQL, lấy execution stats, so sánh baseline phát hiện suy thoái.</li>
+            <li><code>SessionCollector</code>: Quét active sessions, lọc session chạy lâu và bắt cây khóa chặn.</li>
+            <li><code>StorageCollector</code>: Kiểm tra dung lượng tablespace (> 85%, > 95%), job lỗi và invalid objects.</li>
+          </ul>
+        </div>
+
+        <!-- 5. Baseline Engine -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">5. Baseline Engine (2-Sigma)</span>
+            <a class="summary-file-link" href="../db-copilot/src/db_copilot/evidence/baseline_engine.py">baseline_engine.py</a>
+          </div>
+          <ul class="summary-items-list">
+            <li>Thu thập mẫu 7 ngày gần nhất phân bổ theo (Giờ trong ngày, Thứ trong tuần).</li>
+            <li>Lọc bỏ nhiễu ngoại lai (Outlier Removal) theo chuẩn phân phối thống kê: $\mu \pm 2\sigma$.</li>
+            <li>Tính toán các mốc chuẩn: Mean, P50, P95, Stddev cho Elapsed time, CPU time, Buffer gets.</li>
+            <li>Đánh dấu độ tin cậy (<code>is_reliable</code> khi mẫu $\ge 5$).</li>
+          </ul>
+        </div>
+
+        <!-- 6. EvidenceScheduler -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">6. EvidenceScheduler (APScheduler)</span>
+            <a class="summary-file-link" href="../db-copilot/src/db_copilot/evidence/scheduler.py">scheduler.py</a>
+          </div>
+          <ul class="summary-items-list">
+            <li>Sử dụng <code>AsyncIOScheduler</code> chạy non-blocking trên event loop của Python.</li>
+            <li>Chu kỳ thu thập số liệu (SQL, Session, Storage): <strong>5 phút/lần</strong>.</li>
+            <li>Chu kỳ tính toán lại đường cơ sở hiệu năng (Baseline): <strong>1 giờ/lần</strong>.</li>
+            <li>Tích hợp tự động khởi động và tắt an toàn trong FastAPI <code>lifespan</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('mcp-tools')">1. Danh Mục 32 MCP Tools</button>
+      <button class="tab-btn" onclick="switchTab('baseline')">2. Thuật Toán Baseline 2-Sigma</button>
+      <button class="tab-btn" onclick="switchTab('scheduler-flow')">3. Chu Trình Chạy Nền Của Scheduler</button>
+    </div>
+
+    <!-- Tab 1: 32 MCP Tools -->
+    <div id="tab-mcp-tools" class="tab-pane active">
+      <div class="card-item">
+        <div class="card-title">Phân Bổ 32 Công Cụ MCP Theo Nhóm Nghiệp Vụ</div>
+        <pre class="code-block">
+1. SQL Performance (4 tools)
+   ├── get_top_sql               (V$SQLSTATS: xếp theo elapsed_time | cpu | io | buffer_gets)
+   ├── get_sql_statistics        (V$SQL: thống kê chi tiết theo SQL_ID)
+   ├── get_sql_wait_events       (V$ACTIVE_SESSION_HISTORY: wait events của câu lệnh)
+   └── get_sql_execution_context (V$ACTIVE_SESSION_HISTORY: module, action, program gọi câu lệnh)
+
+2. Real-time ASH (2 tools)
+   ├── get_ash_sample            (V$ACTIVE_SESSION_HISTORY: mẫu ASH trong khoảng thời gian)
+   └── get_ash_sql_activity      (DBA_HIST_ACTIVE_SESS_HISTORY: lịch sử ASH của SQL_ID)
+
+3. Historical AWR (2 tools)
+   ├── get_awr_snapshot          (DBA_HIST_SNAPSHOT: danh sách các snapshot AWR)
+   └── get_awr_sql_stats         (DBA_HIST_SQLSTAT: biến thiên hiệu năng qua các snapshot)
+
+4. Sessions & Concurrency (5 tools)
+   ├── get_active_sessions       (V$SESSION: các phiên người dùng đang hoạt động)
+   ├── get_session               (V$SESSION: chi tiết phiên theo SID & SERIAL#)
+   ├── get_session_waits         (V$SESSION_WAIT: sự kiện chờ hiện tại kèm tham số P1/P2/P3)
+   ├── get_blocking_sessions     (V$SESSION: cây khóa chặn blocker ➔ blocked sessions)
+   └── get_long_running_sessions (V$SESSION: phiên chạy vượt quá N phút)
+
+5. Execution Plans (2 tools)
+   ├── get_sql_plan              (V$SQL_PLAN: cây kế hoạch thực thi hiện tại)
+   └── get_sql_plan_history      (DBA_HIST_SQL_PLAN: lịch sử thay đổi kế hoạch thực thi)
+
+6. Schema & Objects (6 tools)
+   ├── get_object_source         (DBA_SOURCE: mã nguồn package, procedure, function, trigger)
+   ├── get_object_metadata       (DBA_OBJECTS: loại đối tượng, chủ sở hữu, trạng thái, DDL time)
+   ├── get_object_arguments      (DBA_ARGUMENTS: tham số đầu vào/ra của procedure/function)
+   ├── get_object_dependencies   (DBA_DEPENDENCIES: bảng/view/package phụ thuộc)
+   ├── get_dependency_graph      (DBA_DEPENDENCIES: đồ thị phụ thuộc đệ quy)
+   └── get_invalid_objects       (DBA_OBJECTS: danh sách các đối tượng bị INVALID)
+
+7. Storage & System Health (11 tools)
+   ├── get_database_info         (V$DATABASE, V$INSTANCE: thông tin cơ bản CSDL và instance)
+   ├── get_tablespace_usage      (DBA_TABLESPACES, DBA_DATA_FILES: tỷ lệ sử dụng dung lượng)
+   ├── get_datafile_usage        (DBA_DATA_FILES: chi tiết từng datafile theo tablespace)
+   ├── get_segment_growth        (DBA_SEGMENTS: dung lượng phân đoạn bảng/index)
+   ├── get_temp_usage            (DBA_TEMP_FILES, V$TEMPSTAT: dung lượng tablespace tạm thời)
+   ├── get_undo_usage            (V$UNDOSTAT: khối UNDO active/unexpired/expired)
+   ├── get_redo_statistics       (V$LOG, V$ARCHIVED_LOG: tốc độ sinh archived log theo giờ)
+   ├── get_resource_usage        (V$SYSSTAT: reads, writes, commits, parses)
+   ├── get_scheduler_jobs        (DBA_SCHEDULER_JOBS: danh sách job ngầm và lịch chạy)
+   ├── get_scheduler_job_history (DBA_SCHEDULER_JOB_RUN_DETAILS: lịch sử thực thi job)
+   └── get_failed_jobs           (DBA_SCHEDULER_JOB_RUN_DETAILS: các job bị lỗi trong N giờ)
+        </pre>
+      </div>
+    </div>
+
+    <!-- Tab 2: Baseline -->
+    <div id="tab-baseline" class="tab-pane">
+      <div class="card-item">
+        <div class="card-title">Cơ Chế Lọc Nhiễu Ngoại Lai & Tính Toán Baseline (BaselineEngine)</div>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">
+          Baseline của câu SQL được tính toán theo từng khung giờ trong ngày (0-23) và từng thứ trong tuần (0-6) để phản ánh đúng chu kỳ tải thực tế của doanh nghiệp:
+        </p>
+        <pre class="code-block">
+1. Thu thập tập mẫu: Dữ liệu thực thi của SQL_ID trong 7 ngày gần nhất cùng khung giờ/thứ.
+2. Lọc bỏ Outliers (2-Sigma):
+   - Tính mean μ và độ lệch chuẩn σ ban đầu.
+   - Loại bỏ các giá trị nằm ngoài khoảng: [μ - 2σ, μ + 2σ].
+3. Tính toán lại các mốc thống kê sau lọc:
+   - mean_elapsed_ms   : Thời gian thực thi trung bình chuẩn.
+   - p50_elapsed_ms    : Trung vị (Median).
+   - p95_elapsed_ms    : Mốc phân vị 95%.
+   - is_reliable       : Đánh dấu TRUE nếu số mẫu sau lọc >= 5, ngược lại FALSE.
+4. Lưu trữ vào bảng `sql_baselines` trong PostgreSQL.
+        </pre>
+      </div>
+    </div>
+
+    <!-- Tab 3: Scheduler Flow -->
+    <div id="tab-scheduler-flow" class="tab-pane">
+      <div class="card-item">
+        <div class="card-title">Lịch Trình Chạy Ngầm Của EvidenceScheduler</div>
+        <pre class="code-block">
+Ứng dụng FastAPI khởi động (lifespan startup)
+   │
+   ▼
+EvidenceScheduler.start()
+   ├──► [Mỗi 5 phút]: run_sql_collection()     ──► SqlCollector     ──► Lưu sql_metrics & evidence
+   ├──► [Mỗi 5 phút]: run_session_collection() ──► SessionCollector ──► Lưu blocking/long session evidence
+   ├──► [Mỗi 5 phút]: run_storage_collection() ──► StorageCollector ──► Lưu tablespace/job evidence
+   └──► [Mỗi 1 giờ ]: run_baseline_recalculation() ──► BaselineEngine ──► Cập nhật sql_baselines (2-sigma)
+   │
+   ▼
+Ứng dụng FastAPI dừng (lifespan shutdown)
+   │
+   ▼
+EvidenceScheduler.shutdown() ➔ Hủy an toàn mọi job ngầm, giải phóng DB pool.
+        </pre>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <p>Oracle Database Copilot — Phase 1 Engineering Summary</p>
+      <p style="margin-top: 0.25rem;">
+        Tham chiếu: <a href="phase_0_sumary.html">Phase 0 Summary</a> • <a href="phase_2_sumary.html">Phase 2 Summary</a> • <a href="present.md">present.md</a>
+      </p>
+    </footer>
+
+  </div>
+
+  <script>
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+      const target = document.getElementById('tab-' + tabId);
+      if (target) target.classList.add('active');
+    }
+  </script>
+</body>
+</html>

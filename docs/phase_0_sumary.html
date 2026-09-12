@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Báo Cáo Tổng Kết Phase 0 — Foundation & Setup | Oracle DB Copilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #07090e;
+      --bg-secondary: #0d121d;
+      --bg-card: rgba(17, 24, 39, 0.7);
+      --bg-card-hover: rgba(26, 36, 56, 0.8);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(56, 189, 248, 0.25);
+      
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      
+      --accent-cyan: #38bdf8;
+      --accent-emerald: #10b981;
+      --accent-violet: #8b5cf6;
+      --accent-amber: #f59e0b;
+      
+      --gradient-cyan: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+      --gradient-emerald: linear-gradient(135deg, #34d399 0%, #059669 100%);
+      --gradient-card: linear-gradient(145deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      padding: 2.5rem 1.5rem;
+      min-height: 100vh;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.07) 0%, transparent 40%),
+        radial-gradient(circle at 85% 25%, rgba(139, 92, 246, 0.08) 0%, transparent 45%);
+      background-attachment: fixed;
+    }
+
+    .container { max-width: 1240px; margin: 0 auto; }
+
+    header {
+      background: var(--gradient-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      padding: 2.5rem;
+      margin-bottom: 2.5rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+    }
+
+    header::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, #38bdf8, #8b5cf6, #10b981);
+    }
+
+    .header-badge-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .badge-success {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-info {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .pulse-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+    }
+
+    h1 {
+      font-size: 2.25rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-desc {
+      color: var(--text-secondary);
+      font-size: 1.05rem;
+      max-width: 850px;
+    }
+
+    /* ── Metrics Grid ── */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 1.5rem;
+      transition: all 0.3s ease;
+    }
+
+    .metric-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--border-accent);
+      box-shadow: 0 12px 24px -10px rgba(56, 189, 248, 0.15);
+    }
+
+    .metric-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .metric-value {
+      font-size: 2.1rem;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.2;
+    }
+
+    .metric-sub {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-top: 0.5rem;
+    }
+
+    /* ── Executive Summary Highlight Card ── */
+    .summary-highlight-card {
+      background: linear-gradient(145deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 20px;
+      padding: 2.25rem;
+      margin-bottom: 2.5rem;
+      box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+
+    .summary-highlight-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; width: 4px; height: 100%;
+      background: var(--gradient-cyan);
+    }
+
+    .summary-highlight-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 1rem;
+    }
+
+    .summary-highlight-title {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #ffffff;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .summary-block {
+      background: rgba(13, 18, 29, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 1.25rem;
+      transition: all 0.2s ease;
+    }
+
+    .summary-block:hover {
+      border-color: rgba(56, 189, 248, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .summary-block-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .summary-block-name {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+
+    .summary-file-link {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.1);
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      text-decoration: none;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .summary-items-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .summary-items-list li {
+      font-size: 0.84rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      position: relative;
+      padding-left: 1.25rem;
+    }
+
+    .summary-items-list li::before {
+      content: '•';
+      position: absolute;
+      left: 0.25rem;
+      color: var(--accent-cyan);
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+
+    /* ── Tab System ── */
+    .tab-nav {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 0.75rem;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-secondary);
+      padding: 0.6rem 1.2rem;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .tab-btn.active {
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--accent-cyan);
+      border-color: var(--border-accent);
+    }
+
+    .tab-pane { display: none; animation: fadeIn 0.3s ease; }
+    .tab-pane.active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .card-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 1.5rem;
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.5rem;
+    }
+
+    pre.code-block {
+      background: #04060a;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      overflow-x: auto;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 3.5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Header Section -->
+    <header>
+      <div class="header-badge-row">
+        <div class="badge badge-success">
+          <span class="pulse-dot"></span>
+          PHASE 0 COMPLETED
+        </div>
+        <div class="badge badge-info">FOUNDATION & INFRASTRUCTURE</div>
+        <div class="badge badge-info">ORACLE THIN MODE</div>
+      </div>
+      <h1>Oracle DB Copilot — Phase 0: Foundation & Setup</h1>
+      <p class="header-desc">
+        Xây dựng kiến trúc nền tảng, thiết lập môi trường CSDL PostgreSQL, quy chuẩn bảo mật Least-Privilege cho Oracle,
+        kết nối python-oracledb Thin Mode và khởi tạo 2 sub-projects độc lập (oracle-mcp-server & db-copilot).
+      </p>
+    </header>
+
+    <!-- Key Metrics -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-title">Tiến Độ Phase 0</div>
+        <div class="metric-value" style="color: #34d399;">100%</div>
+        <div class="metric-sub">Hoàn thành cả 2 sub-projects</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">Foundation MCP Tools</div>
+        <div class="metric-value" style="color: #38bdf8;">6 Tools</div>
+        <div class="metric-sub">DB Info, SQL, Sessions, Tablespace</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">PostgreSQL Tables</div>
+        <div class="metric-value" style="color: #a78bfa;">8 Tables</div>
+        <div class="metric-sub">Alembic Migration 001_initial</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">Bảo Mật Quyền Truy Cập</div>
+        <div class="metric-value" style="color: #f59e0b;">SELECT-Only</div>
+        <div class="metric-sub">0 DML/DDL, Credential Sanitizer</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">Unit Tests Passed</div>
+        <div class="metric-value" style="color: #34d399;">17 / 17</div>
+        <div class="metric-sub">14 MCP tests + 3 FastAPI tests</div>
+      </div>
+    </div>
+
+    <!-- 🌟 Tóm tắt kết quả thực hiện Phase 0 -->
+    <div class="summary-highlight-card">
+      <div class="summary-highlight-header">
+        <div class="summary-highlight-title">
+          <span>🌟 Tóm tắt kết quả thực hiện Phase 0</span>
+        </div>
+        <div class="badge badge-success">Phase 0 — Core Milestones</div>
+      </div>
+      
+      <div class="summary-grid">
+        <!-- 1. oracle-mcp-server Foundation -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">1. oracle-mcp-server Foundation</span>
+            <a class="summary-file-link" href="../oracle-mcp-server/src/oracle_mcp/server.py">server.py</a>
+          </div>
+          <ul class="summary-items-list">
+            <li>Khởi tạo máy chủ MCP chuẩn SDK 2.x giao tiếp qua giao thức <code>stdio</code>.</li>
+            <li>Kết nối Oracle 19c qua <strong>Thin Mode</strong> (thuần Python/Rust), không cần Oracle Instant Client.</li>
+            <li>Async Connection Pool (<code>oracledb.AsyncConnectionPool</code>) tối ưu hóa truy vấn đồng thời.</li>
+            <li>Bộ 6 tools nền tảng: <code>get_database_info</code>, <code>get_top_sql</code>, <code>get_sql_statistics</code>, <code>get_active_sessions</code>, <code>get_blocking_sessions</code>, <code>get_tablespace_usage</code>.</li>
+          </ul>
+        </div>
+
+        <!-- 2. Security Model & Oracle Grants -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">2. Security & Oracle Grants</span>
+            <a class="summary-file-link" href="../oracle-mcp-server/docs/grants.sql">grants.sql</a>
+          </div>
+          <ul class="summary-items-list">
+            <li>Nguyên tắc Least Privilege: Account <code>db_copilot_readonly</code> chỉ có quyền <code>SELECT</code> trên view hiệu năng.</li>
+            <li>Tuyệt đối không cấp quyền <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>DROP</code> hay <code>EXECUTE</code>.</li>
+            <li>Bộ lọc làm sạch (Sanitizer): Tự động xóa hoặc ẩn mật khẩu trước khi ghi nhật ký.</li>
+            <li>Audit Logging: Ghi vết JSON ra <code>sys.stderr</code> bảo vệ kênh dữ liệu JSON-RPC.</li>
+          </ul>
+        </div>
+
+        <!-- 3. db-copilot Foundation -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">3. db-copilot Backend Foundation</span>
+            <a class="summary-file-link" href="../db-copilot/src/db_copilot/api/app.py">app.py</a>
+          </div>
+          <ul class="summary-items-list">
+            <li>FastAPI Application Factory cấu hình quản lý vòng đời (<code>lifespan</code>).</li>
+            <li>Kết nối bất đồng bộ PostgreSQL qua SQLAlchemy 2.0 và driver <code>asyncpg</code>.</li>
+            <li>Health check API: <code>GET /api/v1/health</code> kiểm tra trạng thái CSDL.</li>
+            <li>Cấu hình mạnh mẽ qua Pydantic Settings đọc biến môi trường từ <code>.env</code>.</li>
+          </ul>
+        </div>
+
+        <!-- 4. Database Schema & Migrations -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">4. Database Schema & Migrations</span>
+            <a class="summary-file-link" href="../db-copilot/alembic/versions/001_initial_schema.py">001_initial_schema.py</a>
+          </div>
+          <ul class="summary-items-list">
+            <li>Cấu hình Alembic async migrations tự động đồng bộ lược đồ bảng.</li>
+            <li>Khởi tạo 8 bảng cốt lõi: <code>databases</code>, <code>snapshots</code>, <code>sql_metrics</code>, <code>sql_baselines</code>, <code>incidents</code>, <code>evidence_items</code>, <code>mcp_audit_logs</code>, <code>diagnoses</code>.</li>
+            <li>Đầy đủ chỉ mục (Indexes) và khóa ngoại (Foreign Keys) tối ưu hóa truy vấn lịch sử.</li>
+          </ul>
+        </div>
+
+        <!-- 5. DevOps & Containerization -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">5. Docker & CI/CD Pipeline</span>
+            <a class="summary-file-link" href="../docker-compose.yml">docker-compose.yml</a>
+          </div>
+          <ul class="summary-items-list">
+            <li>Dockerfile độc lập cho cả 2 dự án dựa trên <code>python:3.12-slim</code>.</li>
+            <li>Docker Compose khởi chạy sẵn PostgreSQL 16 và Backend API.</li>
+            <li>GitHub Actions CI workflow tự động kiểm tra cú pháp (Ruff) và chạy test suites.</li>
+          </ul>
+        </div>
+
+        <!-- 6. Unit Testing -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">6. Unit Tests Suite</span>
+            <a class="summary-file-link" href="../oracle-mcp-server/tests/unit/test_phase0_tools.py">test_phase0_tools.py</a>
+          </div>
+          <ul class="summary-items-list">
+            <li>14 tests cho `oracle-mcp-server` (Kiểm thử 6 tools cơ sở, sanitizer, audit log).</li>
+            <li>3 tests cho `db-copilot` (Health endpoint, lỗi mất kết nối DB, domain models).</li>
+            <li>Tất cả các test chạy không cần Database thật nhờ Mock Session & SQLite in-memory.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('arch')">1. Kiến Trúc Hai Tầng</button>
+      <button class="tab-btn" onclick="switchTab('schema')">2. Lược Đồ 8 Bảng PostgreSQL</button>
+      <button class="tab-btn" onclick="switchTab('security')">3. Mô Hình Bảo Mật Least-Privilege</button>
+    </div>
+
+    <!-- Tab 1: Arch -->
+    <div id="tab-arch" class="tab-pane active">
+      <div class="card-item">
+        <div class="card-title">Mô Hình Phân Tách Hai Sub-Projects</div>
+        <pre class="code-block">
+AI Agent / Client (Claude, Cursor, db-copilot)
+         │
+         │  Giao thức MCP (stdio JSON-RPC)
+         ▼
+  oracle-mcp-server (Read-only Gateway)
+         │
+         │  oracledb Thin Mode (Port 1521 - TCP Socket)
+         ▼
+  Oracle Database (Instance: ORCL - User: db_copilot_readonly)
+        </pre>
+      </div>
+    </div>
+
+    <!-- Tab 2: Schema -->
+    <div id="tab-schema" class="tab-pane">
+      <div class="card-item">
+        <div class="card-title">Danh Sách 8 Bảng Khởi Tạo Trong PostgreSQL (Alembic 001)</div>
+        <ul style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.8; margin-left: 1.5rem;">
+          <li><code>databases</code>: Quản lý danh mục CSDL Oracle mục tiêu (Host, Port, Service Name, Version).</li>
+          <li><code>snapshots</code>: Ảnh chụp trạng thái hệ thống theo chu kỳ (Active sessions, CPU, Health score).</li>
+          <li><code>sql_metrics</code>: Thống kê hiệu năng chi tiết theo từng SQL_ID (Elapsed, CPU, Buffer gets, Disk reads).</li>
+          <li><code>sql_baselines</code>: Đường chuẩn hiệu năng bình thường của SQL theo giờ trong ngày và ngày trong tuần.</li>
+          <li><code>incidents</code>: Quản lý sự cố hiệu năng phát hiện được (Severity, Status, Category, Diagnosis).</li>
+          <li><code>evidence_items</code>: Các bằng chứng kỹ thuật hỗ trợ cho sự cố.</li>
+          <li><code>mcp_audit_logs</code>: Nhật ký kiểm toán mọi lượt gọi Tool tới Oracle MCP Server.</li>
+          <li><code>diagnoses</code>: Kết quả chẩn đoán và đề xuất xử lý từ AI Engine.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Tab 3: Security -->
+    <div id="tab-security" class="tab-pane">
+      <div class="card-item">
+        <div class="card-title">Bộ Lệnh Cấp Quyền Oracle Tối Thiểu (docs/grants.sql)</div>
+        <pre class="code-block">
+CREATE USER db_copilot_readonly IDENTIFIED BY "ChangeMe_2026!";
+GRANT CREATE SESSION TO db_copilot_readonly;
+
+-- Chỉ cấp quyền đọc các V$ và DBA views cần thiết
+GRANT SELECT ON V_$DATABASE TO db_copilot_readonly;
+GRANT SELECT ON V_$INSTANCE TO db_copilot_readonly;
+GRANT SELECT ON V_$SESSION TO db_copilot_readonly;
+GRANT SELECT ON V_$SQLSTATS TO db_copilot_readonly;
+GRANT SELECT ON DBA_TABLESPACES TO db_copilot_readonly;
+GRANT SELECT ON DBA_DATA_FILES TO db_copilot_readonly;
+GRANT SELECT ON DBA_FREE_SPACE TO db_copilot_readonly;
+        </pre>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <p>Oracle Database Copilot — Phase 0 Engineering Summary</p>
+      <p style="margin-top: 0.25rem;">
+        Tham chiếu: <a href="phase_1_sumary.html">Phase 1 Summary</a> • <a href="phase_2_sumary.html">Phase 2 Summary</a> • <a href="present.md">present.md</a>
+      </p>
+    </footer>
+
+  </div>
+
+  <script>
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+      const target = document.getElementById('tab-' + tabId);
+      if (target) target.classList.add('active');
+    }
+  </script>
+</body>
+</html>

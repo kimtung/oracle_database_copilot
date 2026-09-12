@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Báo Cáo Tổng Kết Phase 2 — Health & Correlation Engine | Oracle DB Copilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #07090e;
+      --bg-secondary: #0d121d;
+      --bg-card: rgba(17, 24, 39, 0.7);
+      --bg-card-hover: rgba(26, 36, 56, 0.8);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(56, 189, 248, 0.25);
+      
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      
+      --accent-cyan: #38bdf8;
+      --accent-emerald: #10b981;
+      --accent-violet: #8b5cf6;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      
+      --gradient-cyan: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+      --gradient-emerald: linear-gradient(135deg, #34d399 0%, #059669 100%);
+      --gradient-violet: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%);
+      --gradient-card: linear-gradient(145deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      padding: 2.5rem 1.5rem;
+      min-height: 100vh;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.07) 0%, transparent 40%),
+        radial-gradient(circle at 85% 25%, rgba(139, 92, 246, 0.08) 0%, transparent 45%),
+        radial-gradient(circle at 50% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 50%);
+      background-attachment: fixed;
+    }
+
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--gradient-card);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      padding: 2.5rem;
+      margin-bottom: 2.5rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+    }
+
+    header::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #38bdf8, #8b5cf6, #10b981);
+    }
+
+    .header-badge-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .badge-success {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-info {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .badge-purple {
+      background: rgba(139, 92, 246, 0.15);
+      color: #a78bfa;
+      border: 1px solid rgba(139, 92, 246, 0.3);
+    }
+
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+    }
+
+    h1 {
+      font-size: 2.25rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-desc {
+      color: var(--text-secondary);
+      font-size: 1.05rem;
+      max-width: 850px;
+    }
+
+    /* ── Metrics Grid ── */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 1.5rem;
+      position: relative;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .metric-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--border-accent);
+      background: var(--bg-card-hover);
+      box-shadow: 0 12px 24px -10px rgba(56, 189, 248, 0.15);
+    }
+
+    .metric-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .metric-value {
+      font-size: 2.1rem;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.2;
+      display: flex;
+      align-items: baseline;
+      gap: 0.35rem;
+    }
+
+    .metric-sub {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-top: 0.5rem;
+    }
+
+    /* ── Architecture Pipeline Flow ── */
+    .pipeline-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 18px;
+      padding: 2rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .section-title span.icon {
+      font-size: 1.4rem;
+    }
+
+    .pipeline-flow {
+      display: flex;
+      align-items: stretch;
+      gap: 0.75rem;
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+    }
+
+    .flow-step {
+      flex: 1;
+      min-width: 175px;
+      background: rgba(13, 18, 29, 0.85);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.25rem 1rem;
+      position: relative;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      transition: all 0.25s ease;
+    }
+
+    .flow-step:hover {
+      border-color: var(--accent-cyan);
+      transform: translateY(-2px);
+    }
+
+    .flow-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      color: #07090e;
+      font-size: 0.75rem;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 0.5rem;
+    }
+
+    .flow-name {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 0.25rem;
+    }
+
+    .flow-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .flow-arrow {
+      display: flex;
+      align-items: center;
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      user-select: none;
+    }
+
+    /* ── Tab System ── */
+    .tab-nav {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 0.75rem;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-secondary);
+      padding: 0.6rem 1.2rem;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .tab-btn.active {
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--accent-cyan);
+      border-color: var(--border-accent);
+    }
+
+    .tab-pane {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Cards & Tables inside Tabs ── */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .card-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 1.5rem;
+      transition: border-color 0.2s;
+    }
+
+    .card-item:hover {
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.75rem;
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .rule-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--accent-cyan);
+    }
+
+    .card-body p {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.75rem;
+    }
+
+    .key-points {
+      list-style: none;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .key-points li strong {
+      color: var(--text-secondary);
+    }
+
+    /* ── Code & Endpoints ── */
+    .api-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .api-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .method-get {
+      background: rgba(56, 189, 248, 0.2);
+      color: #38bdf8;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .method-patch {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .api-endpoint {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .api-desc {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.75rem;
+    }
+
+    pre.code-block {
+      background: #04060a;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      overflow-x: auto;
+    }
+
+    /* ── Test Suite Table ── */
+    .table-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-secondary);
+      font-weight: 600;
+      padding: 0.9rem 1.25rem;
+      border-bottom: 1px solid var(--border-subtle);
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+
+    td {
+      padding: 0.9rem 1.25rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-secondary);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text-primary);
+    }
+
+    .status-ok {
+      color: #34d399;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    /* ── Executive Summary Highlight Card ── */
+    .summary-highlight-card {
+      background: linear-gradient(145deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 20px;
+      padding: 2.25rem;
+      margin-bottom: 2.5rem;
+      box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .summary-highlight-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      background: var(--gradient-cyan);
+    }
+
+    .summary-highlight-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .summary-highlight-title {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .summary-block {
+      background: rgba(13, 18, 29, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 1.25rem;
+      transition: all 0.2s ease;
+    }
+
+    .summary-block:hover {
+      border-color: rgba(56, 189, 248, 0.3);
+      background: rgba(17, 24, 39, 0.9);
+      transform: translateY(-2px);
+    }
+
+    .summary-block-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .summary-block-name {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+
+    .summary-file-link {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.1);
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      text-decoration: none;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .summary-file-link:hover {
+      background: rgba(56, 189, 248, 0.2);
+      text-decoration: underline;
+    }
+
+    .summary-items-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .summary-items-list li {
+      font-size: 0.84rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      position: relative;
+      padding-left: 1.25rem;
+    }
+
+    .summary-items-list li::before {
+      content: '•';
+      position: absolute;
+      left: 0.25rem;
+      color: var(--accent-cyan);
+      font-weight: bold;
+      font-size: 1.1rem;
+      line-height: 1.2;
+    }
+
+    .summary-items-list li strong {
+      color: #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Header Section -->
+    <header>
+      <div class="header-badge-row">
+        <div class="badge badge-success">
+          <span class="pulse-dot"></span>
+          PHASE 2 COMPLETED
+        </div>
+        <div class="badge badge-info">100% DETERMINISTIC</div>
+        <div class="badge badge-purple">ZERO LLM OVERHEAD</div>
+      </div>
+      <h1>Oracle DB Copilot — Phase 2: Health & Correlation Engine</h1>
+      <p class="header-desc">
+        Hệ thống phân tích, gom nhóm sự cố tự động (Correlation Engine), phát hiện bất thường bằng 6 bộ quy tắc tất định,
+        xây dựng đồ thị quan hệ bằng chứng (EvidenceGraph) và xếp hạng giả thuyết gốc trước khi kích hoạt AI.
+      </p>
+    </header>
+
+    <!-- Key Metrics -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-title">Tiến Độ Phase 2</div>
+        <div class="metric-value" style="color: #34d399;">100%</div>
+        <div class="metric-sub">7/7 giai đoạn nghiệm thu</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">Unit Tests Passed</div>
+        <div class="metric-value" style="color: #38bdf8;">49 / 49</div>
+        <div class="metric-sub">100% Green (2.15 giây)</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">Detection Rules</div>
+        <div class="metric-value" style="color: #a78bfa;">6 Rules</div>
+        <div class="metric-sub">Tất định, 0 token, không ảo giác</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">Giả Thuyết Gốc (CBO/Lock)</div>
+        <div class="metric-value" style="color: #f59e0b;">5 Hypotheses</div>
+        <div class="metric-sub">Thuật toán Confidence Scoring</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">Incidents REST APIs</div>
+        <div class="metric-value" style="color: #38bdf8;">3 Endpoints</div>
+        <div class="metric-sub">List, Detail, Resolve</div>
+      </div>
+    </div>
+
+    <!-- 🌟 Tóm tắt kết quả thực hiện -->
+    <div class="summary-highlight-card">
+      <div class="summary-highlight-header">
+        <div class="summary-highlight-title">
+          <span>🌟 Tóm tắt kết quả thực hiện</span>
+        </div>
+        <div class="badge badge-success">Phase 2 — Core Milestones</div>
+      </div>
+      
+      <div class="summary-grid">
+        <!-- 1. IncidentRepository -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">IncidentRepository</span>
+            <a class="summary-file-link" href="../db-copilot/src/db_copilot/correlation/repository.py">repository.py</a>
+          </div>
+          <ul class="summary-items-list">
+            <li>Quản lý trọn vẹn vòng đời sự cố (<code>OPEN</code> ➔ <code>INVESTIGATING</code> ➔ <code>RESOLVED</code>).</li>
+            <li>Tích hợp cơ chế <strong>Deduplication</strong> trong cửa sổ 60 phút (<code>find_open_incident</code>) chống spam sự cố lặp lại.</li>
+          </ul>
+        </div>
+
+        <!-- 2. Bộ 6 Detection Rules tất định -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">Bộ 6 Detection Rules tất định</span>
+            <a class="summary-file-link" href="../db-copilot/src/db_copilot/correlation/rules/">rules/</a>
+          </div>
+          <ul class="summary-items-list">
+            <li><strong>SqlRegressionRule</strong> (phát hiện SQL chạy chậm ≥ 3× và tự động kiểm tra execution plan history qua Oracle MCP).</li>
+            <li><strong>BlockingSessionRule</strong> (bắt chuỗi khóa chặn, trích xuất root blocker SID).</li>
+            <li><strong>LongRunningSessionRule</strong> (cảnh báo session chạy quá ngưỡng).</li>
+            <li><strong>TablespaceThresholdRule</strong> (cảnh báo dung lượng Tablespace ≥ 80%, ≥ 90%).</li>
+            <li><strong>JobFailureRule</strong> (bắt DBMS_SCHEDULER jobs lỗi).</li>
+            <li><strong>InvalidObjectRule</strong> (bắt packages/views/procedures bị INVALID).</li>
+          </ul>
+        </div>
+
+        <!-- 3. EvidenceGraph -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">EvidenceGraph</span>
+            <a class="summary-file-link" href="../db-copilot/src/db_copilot/correlation/graph.py">graph.py</a>
+          </div>
+          <ul class="summary-items-list">
+            <li>Xây dựng đồ thị hướng quan hệ bằng chứng (<code>BLOCKS</code>, <code>HAS_PLAN</code>, <code>EXECUTES</code>, <code>CAUSES</code>).</li>
+            <li>Thuật toán BFS tìm chuỗi nguyên nhân gốc (<code>find_causal_chains</code>) và xác định nút gốc rễ (<code>find_root_causes</code>).</li>
+          </ul>
+        </div>
+
+        <!-- 4. HypothesisEngine -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">HypothesisEngine</span>
+            <a class="summary-file-link" href="../db-copilot/src/db_copilot/correlation/hypothesis_engine.py">hypothesis_engine.py</a>
+          </div>
+          <ul class="summary-items-list">
+            <li>Ma trận 5 giả thuyết gốc (<code>H1_PLAN_REGRESSION</code>, <code>H2_LOCK_CONTENTION</code>, <code>H3_STATISTICS_STALE</code>, <code>H4_RESOURCE_EXHAUSTION</code>, <code>H5_CODE_DEFECT</code>).</li>
+            <li>Thuật toán tính điểm tin cậy <strong>Confidence Score</strong> (0.0 – 1.0).</li>
+          </ul>
+        </div>
+
+        <!-- 5. CorrelationEngine Orchestrator -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">CorrelationEngine Orchestrator</span>
+            <a class="summary-file-link" href="../db-copilot/src/db_copilot/correlation/engine.py">engine.py</a>
+          </div>
+          <ul class="summary-items-list">
+            <li>Điều phối toàn bộ pipeline: Metrics ➔ Rules ➔ Deduplication ➔ Graph ➔ Hypotheses ➔ Lưu trữ Incident.</li>
+          </ul>
+        </div>
+
+        <!-- 6. REST API Incidents -->
+        <div class="summary-block">
+          <div class="summary-block-head">
+            <span class="summary-block-name">REST API Incidents</span>
+            <a class="summary-file-link" href="../db-copilot/src/db_copilot/api/routes/incidents.py">incidents.py</a>
+          </div>
+          <ul class="summary-items-list">
+            <li><code>GET /api/v1/incidents</code> (lọc theo severity, status, category, phân trang).</li>
+            <li><code>GET /api/v1/incidents/{id}</code> (lấy chi tiết sự cố kèm evidence và chẩn đoán ban đầu).</li>
+            <li><code>PATCH /api/v1/incidents/{id}/resolve</code> (đóng sự cố).</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pipeline Architecture -->
+    <div class="pipeline-section">
+      <div class="section-title">
+        <span class="icon">⚡</span> Quy Trình Hoạt Động Của Correlation Engine
+      </div>
+      <div class="pipeline-flow">
+        <div class="flow-step">
+          <div class="flow-num">1</div>
+          <div class="flow-name">Raw Metrics</div>
+          <div class="flow-desc">Kéo từ Oracle MCP Server mỗi 5 phút</div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="flow-num">2</div>
+          <div class="flow-name">6 Detection Rules</div>
+          <div class="flow-desc">Đánh giá ngưỡng tất định & plan hash</div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="flow-num">3</div>
+          <div class="flow-name">Deduplication</div>
+          <div class="flow-desc">Chống trùng lặp trong 60 phút</div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="flow-num">4</div>
+          <div class="flow-name">EvidenceGraph</div>
+          <div class="flow-desc">Duyệt BFS tìm Root Cause</div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="flow-num">5</div>
+          <div class="flow-name">Hypothesis Engine</div>
+          <div class="flow-desc">Xếp hạng 5 giả thuyết gốc</div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="flow-num">6</div>
+          <div class="flow-name">PostgreSQL & API</div>
+          <div class="flow-desc">Lưu Incident & công bố REST API</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('rules')">1. Bộ 6 Detection Rules</button>
+      <button class="tab-btn" onclick="switchTab('graph')">2. EvidenceGraph & BFS</button>
+      <button class="tab-btn" onclick="switchTab('hypotheses')">3. Ma Trận 5 Giả Thuyết</button>
+      <button class="tab-btn" onclick="switchTab('api')">4. REST API Incidents</button>
+      <button class="tab-btn" onclick="switchTab('tests')">5. Chi Tiết 49 Unit Tests</button>
+    </div>
+
+    <!-- Tab 1: Rules -->
+    <div id="tab-rules" class="tab-pane active">
+      <div class="grid-2">
+        <div class="card-item">
+          <div class="card-head">
+            <div class="card-title">SqlRegressionRule</div>
+            <span class="rule-tag">PERFORMANCE</span>
+          </div>
+          <div class="card-body">
+            <p>Phát hiện suy thoái hiệu năng câu SQL so với baseline lịch sử (mean elapsed time).</p>
+            <ul class="key-points">
+              <li><strong>Ngưỡng kích hoạt:</strong> Tỷ lệ tăng trưởng ≥ 3.0x (bỏ qua nếu baseline unreliable).</li>
+              <li><strong>Phân cấp mức độ:</strong> ≥ 10x ➔ CRITICAL, ≥ 5x ➔ HIGH, ≥ 3x ➔ MEDIUM.</li>
+              <li><strong>Tích hợp MCP:</strong> Tự động gọi <code>get_sql_plan_history</code> để phát hiện thay đổi plan_hash.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card-item">
+          <div class="card-head">
+            <div class="card-title">BlockingSessionRule</div>
+            <span class="rule-tag">CONCURRENCY</span>
+          </div>
+          <div class="card-body">
+            <p>Phát hiện tranh chấp khóa hàng/bảng (Lock Contention) và chuỗi phiên bị nghẽn.</p>
+            <ul class="key-points">
+              <li><strong>Dữ liệu:</strong> Cây khóa chặn từ <code>get_blocking_sessions</code>.</li>
+              <li><strong>Trích xuất:</strong> Root blocker SID, serial, program, wait event và danh sách blocked sessions.</li>
+              <li><strong>Mức độ:</strong> HIGH (CRITICAL nếu chặn ≥ 5 sessions hoặc chờ ≥ 300s).</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card-item">
+          <div class="card-head">
+            <div class="card-title">LongRunningSessionRule</div>
+            <span class="rule-tag">SESSION</span>
+          </div>
+          <div class="card-body">
+            <p>Cảnh báo các phiên người dùng hoạt động liên tục vượt quá ngưỡng thời gian cho phép.</p>
+            <ul class="key-points">
+              <li><strong>Ngưỡng mặc định:</strong> Active liên tục ≥ 1800 giây (30 phút).</li>
+              <li><strong>Phân cấp mức độ:</strong> ≥ 2 giờ ➔ CRITICAL, ≥ 1 giờ ➔ HIGH, ≥ 30 phút ➔ MEDIUM.</li>
+              <li><strong>Theo dõi:</strong> SQL_ID đang thực thi, username và tiến trình gọi.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card-item">
+          <div class="card-head">
+            <div class="card-title">TablespaceThresholdRule</div>
+            <span class="rule-tag">CAPACITY</span>
+          </div>
+          <div class="card-body">
+            <p>Giám sát dung lượng lưu trữ của toàn bộ các Tablespace trong Database.</p>
+            <ul class="key-points">
+              <li><strong>Ngưỡng cảnh báo:</strong> Used ≥ 80% (Warning/Medium), Used ≥ 90% (Critical).</li>
+              <li><strong>Dự báo:</strong> Tính toán dung lượng còn lại và ước tính số ngày đến khi đầy (days_until_full).</li>
+              <li><strong>Bằng chứng:</strong> Tạo bằng chứng <code>TABLESPACE_FULL</code> phục vụ báo động sớm.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card-item">
+          <div class="card-head">
+            <div class="card-title">JobFailureRule</div>
+            <span class="rule-tag">OPERATIONAL</span>
+          </div>
+          <div class="card-body">
+            <p>Phát hiện các tác vụ ngầm Oracle Scheduler (DBMS_SCHEDULER) gặp sự cố.</p>
+            <ul class="key-points">
+              <li><strong>Nguồn:</strong> <code>DBA_SCHEDULER_JOB_RUN_DETAILS</code> trong 24 giờ qua.</li>
+              <li><strong>Chi tiết lỗi:</strong> Bắt mã lỗi Oracle (ORA-XXXXX), tên job, owner và message lỗi chi tiết.</li>
+              <li><strong>Mức độ:</strong> Luôn gán HIGH để DBA xử lý ngay lập tức.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card-item">
+          <div class="card-head">
+            <div class="card-title">InvalidObjectRule</div>
+            <span class="rule-tag">SCHEMA</span>
+          </div>
+          <div class="card-body">
+            <p>Phát hiện các đối tượng CSDL (Package, Procedure, Trigger, View) bị rơi vào trạng thái INVALID.</p>
+            <ul class="key-points">
+              <li><strong>Nguồn:</strong> <code>DBA_OBJECTS</code> với <code>STATUS = 'INVALID'</code>.</li>
+              <li><strong>Mức độ:</strong> HIGH đối với Package Body/Trigger quan trọng; MEDIUM cho view/synonym.</li>
+              <li><strong>Mục đích:</strong> Ngăn chặn lỗi runtime khi ứng dụng nghiệp vụ gọi procedure.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Graph -->
+    <div id="tab-graph" class="tab-pane">
+      <div class="card-item" style="margin-bottom: 1.25rem;">
+        <div class="card-title" style="margin-bottom: 0.5rem;">Cấu Trúc Đồ Thị Quan Hệ Bằng Chứng (EvidenceGraph)</div>
+        <p style="color: var(--text-secondary); font-size: 0.9rem;">
+          Đồ thị có hướng (Directed Graph) kết nối các thực thể và bằng chứng thành mạng lưới nguyên nhân - kết quả.
+        </p>
+        <pre class="code-block">
+GraphNode:
+  - id: "SESSION:101", "SQL:b6usrg82hwsa3", "PLAN:2201948", "TABLESPACE:USERS"
+  - entity_type: SQL | SESSION | PLAN | TABLESPACE | JOB | OBJECT
+  - evidences: list[Evidence]
+
+GraphEdge (Directed):
+  - BLOCKS     : SESSION:101 ────────► SESSION:201 (Row lock contention)
+  - EXECUTES   : SESSION:101 ────────► SQL:b6usrg82hwsa3
+  - HAS_PLAN   : SQL:b6usrg82hwsa3 ──► PLAN:2201948 (Mới)
+  - IMPACTS    : TABLESPACE:USERS ───► JOB:DAILY_BACKUP
+        </pre>
+      </div>
+
+      <div class="card-item">
+        <div class="card-title" style="margin-bottom: 0.5rem;">Thuật Toán Duyệt BFS Tìm Chuỗi Nguyên Nhân Gốc</div>
+        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 0.75rem;">
+          Hàm <code>find_root_causes()</code> lọc ra các node là nguồn cơn (Root Blocker, New Plan, Full Tablespace), sau đó dùng <code>find_causal_chains()</code> duyệt BFS truy vết đường đi đến các node triệu chứng:
+        </p>
+        <pre class="code-block" style="color: #34d399;">
+[Causal Chain 1]: SESSION:101 (Root Blocker) ──► SESSION:201 (Blocked Session)
+[Causal Chain 2]: SESSION:101 (Root Blocker) ──► SQL:b6usrg82hwsa3 (Executing Heavy Query)
+[Causal Chain 3]: SQL:sql_order_query ────────► PLAN:441029 (Suboptimal Plan)
+        </pre>
+      </div>
+    </div>
+
+    <!-- Tab 3: Hypotheses -->
+    <div id="tab-hypotheses" class="tab-pane">
+      <div class="card-item" style="margin-bottom: 1.25rem;">
+        <div class="card-title" style="margin-bottom: 0.5rem;">Ma Trận 5 Giả Thuyết Gốc & Thuật Toán Tính Điểm (Confidence Scoring)</div>
+        <p style="color: var(--text-secondary); font-size: 0.9rem;">
+          Điểm tin cậy (Confidence Score từ 0.0 đến 1.0) được tính toán hoàn toàn tất định dựa trên trọng số bằng chứng:
+        </p>
+        <div style="background: rgba(0,0,0,0.4); padding: 1rem; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: #38bdf8; margin: 0.75rem 0;">
+          Confidence Score = Direct Evidence (+0.50) + Correlating Evidence (+0.25) + Graph Causal Link (+0.20) [Max = 1.0]
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card-item">
+          <div class="card-title" style="color: #38bdf8;">H1: SQL Execution Plan Regression</div>
+          <p>Plan thay đổi dẫn tới Full Table Scan hoặc Nested Loop kém tối ưu.</p>
+          <ul class="key-points">
+            <li><strong>Direct:</strong> <code>SQL_PLAN_CHANGE</code> (+0.50)</li>
+            <li><strong>Correlating:</strong> <code>SQL_REGRESSION</code> (+0.25)</li>
+            <li><strong>Graph:</strong> Node SQL kết nối trực tiếp với 2 Plan khác nhau (+0.20)</li>
+          </ul>
+        </div>
+
+        <div class="card-item">
+          <div class="card-title" style="color: #f59e0b;">H2: Row/Table Lock Contention</div>
+          <p>Phiên đang chờ khóa giao dịch hoặc khóa hàng do một phiên khác nắm giữ.</p>
+          <ul class="key-points">
+            <li><strong>Direct:</strong> <code>BLOCKING_SESSION</code> (+0.50)</li>
+            <li><strong>Correlating:</strong> <code>LONG_RUNNING_SESSION</code> (+0.25)</li>
+            <li><strong>Graph:</strong> Cây khóa chặn xác nhận Root Blocker (+0.20)</li>
+          </ul>
+        </div>
+
+        <div class="card-item">
+          <div class="card-title" style="color: #a78bfa;">H3: Stale Optimizer Statistics</div>
+          <p>Thống kê CBO lỗi thời khiến Optimizer dự báo sai số lượng dòng (Cardinality mismatch).</p>
+          <ul class="key-points">
+            <li><strong>Direct:</strong> <code>STALE_STATISTICS</code>, <code>CARDINALITY_MISMATCH</code> (+0.50)</li>
+            <li><strong>Correlating:</strong> <code>SQL_REGRESSION</code> (+0.25)</li>
+          </ul>
+        </div>
+
+        <div class="card-item">
+          <div class="card-title" style="color: #f43f5e;">H4: Resource Capacity Exhaustion</div>
+          <p>Hết dung lượng Tablespace, tràn TEMP Tablespace hoặc cạn kiệt tài nguyên hệ thống.</p>
+          <ul class="key-points">
+            <li><strong>Direct:</strong> <code>TABLESPACE_FULL</code>, <code>TEMP_FULL</code>, <code>HIGH_CPU</code> (+0.50)</li>
+            <li><strong>Correlating:</strong> <code>JOB_FAILURE</code> (+0.25)</li>
+          </ul>
+        </div>
+
+        <div class="card-item" style="grid-column: 1 / -1;">
+          <div class="card-title" style="color: #34d399;">H5: Application Logic or Schema Defect</div>
+          <p>Lỗi mã nguồn PL/SQL, Job chạy lỗi do bug ứng dụng, hoặc cấu trúc Schema không hợp lệ.</p>
+          <ul class="key-points">
+            <li><strong>Direct:</strong> <code>JOB_FAILURE</code>, <code>INVALID_OBJECTS</code> (+0.50)</li>
+            <li><strong>Correlating:</strong> <code>LONG_RUNNING_SESSION</code> (+0.25)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 4: API -->
+    <div id="tab-api" class="tab-pane">
+      <div class="api-card">
+        <div class="api-header">
+          <span class="method-get">GET</span>
+          <span class="api-endpoint">/api/v1/incidents</span>
+        </div>
+        <div class="api-desc">Lấy danh sách các sự cố với bộ lọc đa tiêu chí (severity, status, category) và phân trang.</div>
+        <pre class="code-block">
+// Request: GET /api/v1/incidents?status=OPEN&severity=CRITICAL&limit=10
+// Response 200 OK:
+[
+  {
+    "id": "c7a81234-5678-4321-abcd-ef0123456789",
+    "severity": "CRITICAL",
+    "category": "TABLESPACE",
+    "title": "Tablespace Capacity Warning: DATA_TS (96.0% used)",
+    "status": "OPEN",
+    "detected_at": "2026-09-12T17:28:14.938Z",
+    "resolved_at": null
+  }
+]
+        </pre>
+      </div>
+
+      <div class="api-card">
+        <div class="api-header">
+          <span class="method-get">GET</span>
+          <span class="api-endpoint">/api/v1/incidents/{incident_id}</span>
+        </div>
+        <div class="api-desc">Xem thông tin chi tiết sự cố, toàn bộ các bằng chứng đính kèm và chẩn đoán giả thuyết ban đầu.</div>
+        <pre class="code-block">
+// Response 200 OK:
+{
+  "incident": {
+    "id": "c7a81234-5678-4321-abcd-ef0123456789",
+    "title": "Lock Contention: Blocker SID 101 blocking 2 session(s)",
+    "status": "OPEN",
+    "category": "BLOCKING",
+    "severity": "HIGH"
+  },
+  "evidence": [
+    {
+      "id": "e9b11111-2222-3333-4444-555555555555",
+      "type": "blocking_session",
+      "entity_type": "SESSION",
+      "entity_id": "101",
+      "data": { "blocker_sid": 101, "blocked_count": 2, "wait_event": "enq: TX - row lock contention" }
+    }
+  ],
+  "diagnosis": {
+    "primary_cause": "H2: Row/Table Lock Contention",
+    "confidence": 0.90,
+    "hypothesis_ranking": [
+      { "name": "H2: Row/Table Lock Contention", "confidence": 0.90 }
+    ]
+  }
+}
+        </pre>
+      </div>
+
+      <div class="api-card">
+        <div class="api-header">
+          <span class="method-patch">PATCH</span>
+          <span class="api-endpoint">/api/v1/incidents/{incident_id}/resolve</span>
+        </div>
+        <div class="api-desc">DBA xác nhận đã xử lý xong sự cố, hệ thống chuyển trạng thái sang RESOLVED và gán thời gian đóng.</div>
+      </div>
+    </div>
+
+    <!-- Tab 5: Tests -->
+    <div id="tab-tests" class="tab-pane">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Module</th>
+              <th>File Kiểm Thử</th>
+              <th>Số Test Cases</th>
+              <th>Nội Dung Kiểm Thử</th>
+              <th>Trạng Thái</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Incidents API</strong></td>
+              <td><code>tests/unit/api/test_incidents.py</code></td>
+              <td>3</td>
+              <td>GET /incidents, GET /{id}, 404 handler, PATCH /resolve</td>
+              <td><span class="status-ok">✔ 100% PASSED</span></td>
+            </tr>
+            <tr>
+              <td><strong>Orchestrator</strong></td>
+              <td><code>tests/unit/correlation/test_engine.py</code></td>
+              <td>2</td>
+              <td>Toàn bộ pipeline, Deduplication, tự động gán hypothesis</td>
+              <td><span class="status-ok">✔ 100% PASSED</span></td>
+            </tr>
+            <tr>
+              <td><strong>Evidence Graph</strong></td>
+              <td><code>tests/unit/correlation/test_graph.py</code></td>
+              <td>3</td>
+              <td>Node/Edge, Root Blocker discovery, BFS causal paths</td>
+              <td><span class="status-ok">✔ 100% PASSED</span></td>
+            </tr>
+            <tr>
+              <td><strong>Hypothesis</strong></td>
+              <td><code>tests/unit/correlation/test_hypothesis.py</code></td>
+              <td>3</td>
+              <td>Lock Contention, Plan Regression, Resource Exhaustion</td>
+              <td><span class="status-ok">✔ 100% PASSED</span></td>
+            </tr>
+            <tr>
+              <td><strong>Repository</strong></td>
+              <td><code>tests/unit/correlation/test_repository.py</code></td>
+              <td>5</td>
+              <td>CRUD Incident, filter status/category/severity, deduplication</td>
+              <td><span class="status-ok">✔ 100% PASSED</span></td>
+            </tr>
+            <tr>
+              <td><strong>Detection Rules</strong></td>
+              <td><code>tests/unit/correlation/test_rules.py</code></td>
+              <td>7</td>
+              <td>6 rules: SQL regression, plan change, lock, storage, jobs...</td>
+              <td><span class="status-ok">✔ 100% PASSED</span></td>
+            </tr>
+            <tr>
+              <td><strong>Evidence Engine</strong></td>
+              <td><code>tests/unit/evidence/test_*.py</code></td>
+              <td>23</td>
+              <td>Baseline engine, collectors, MCP client, normalizer, scheduler</td>
+              <td><span class="status-ok">✔ 100% PASSED</span></td>
+            </tr>
+            <tr>
+              <td><strong>Foundation & Health</strong></td>
+              <td><code>tests/unit/test_health.py</code></td>
+              <td>3</td>
+              <td>Healthcheck 200/503, Domain models validation</td>
+              <td><span class="status-ok">✔ 100% PASSED</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <p>Oracle Database Copilot — Engineering Report 2026</p>
+      <p style="margin-top: 0.25rem;">
+        Tham chiếu tài liệu: 
+        <a href="task_correlation.md">task_correlation.md</a> • 
+        <a href="../SESSION_STATE.md">SESSION_STATE.md</a> • 
+        <a href="present.md">present.md</a>
+      </p>
+    </footer>
+
+  </div>
+
+  <script>
+    function switchTab(tabId) {
+      // Deactivate all tabs
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+
+      // Activate selected tab
+      event.currentTarget.classList.add('active');
+      const targetPane = document.getElementById('tab-' + tabId);
+      if (targetPane) {
+        targetPane.classList.add('active');
+      }
+    }
+  </script>
+</body>
+</html>
