@@ -28,6 +28,22 @@ class Settings(BaseSettings):
     postgres_db: str = "db_copilot"
     postgres_url: str | None = None
 
+    # MCP Server Gateway
+    mcp_server_command: str = "python"
+    mcp_server_args: list[str] = ["-m", "oracle_mcp.server"]
+    mcp_server_cwd: str | None = None
+    oracle_user: str = "db_copilot_readonly"
+    oracle_password: str = ""
+    oracle_dsn: str = "localhost:1521/ORCL"
+
+    # Evidence Engine & Scheduler
+    enable_scheduler: bool = True
+    collection_interval_minutes: int = 5
+    baseline_recalc_interval_hours: int = 1
+    sql_regression_multiplier: float = 3.0
+    tablespace_warning_threshold: float = 80.0
+    tablespace_critical_threshold: float = 90.0
+
     @property
     def database_url(self) -> str:
         if self.postgres_url:

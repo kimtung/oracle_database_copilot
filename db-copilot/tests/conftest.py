@@ -6,6 +6,15 @@ from httpx import ASGITransport, AsyncClient
 
 from db_copilot.api.app import create_app
 from db_copilot.api.deps import get_db_session
+from db_copilot.config.settings import get_settings
+
+
+@pytest.fixture(autouse=True)
+def disable_scheduler_for_tests(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("ENABLE_SCHEDULER", "false")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture

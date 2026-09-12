@@ -6,13 +6,25 @@ from fastapi import FastAPI
 from db_copilot.api.routes.health import router as health_router
 from db_copilot.config.settings import get_settings
 from db_copilot.db.session import close_engine
+from db_copilot.evidence.scheduler import EvidenceScheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    # Startup: resources can be initialized here
+    settings = get_settings()
+    scheduler: EvidenceScheduler | None = None
+
+    # Startup: Start evidence collection scheduler if enabled
+    if settings.enable_scheduler:
+        scheduler = EvidenceScheduler()
+        scheduler.start()
+
     yield
-    # Shutdown: cleanup database engine pool
+
+    # Shutdown: Stop scheduler and cleanup database engine pool
+    if scheduler is not None:
+        scheduler.shutdown()
+
     await close_engine()
 
 
