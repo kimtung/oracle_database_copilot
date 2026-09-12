@@ -141,3 +141,14 @@ Mỗi mục nhật ký ghi nhận theo cấu trúc:
 - **Kết Quả AI Tạo Ra**: File `docs/promt_log.md`, hoàn thiện `docs/vibecode.md`, và thực hiện commit Git.
 - **Yêu Cầu Sửa Lại (Revision)**: Không.
 - **Đánh Giá & Hài Lòng**: ✅ Hoàn thành.
+
+---
+
+### #012 — Thiết lập quy tắc vĩnh viễn: Tự động ghi Prompt Log
+- **Thời gian**: 12/09/2026 17:48
+- **Prompt Người Dùng**: `từ giờ tôi có cần phải chỉ định lưu log promt vào vibecode nữa không hay làm sao để bạn luôn nhớ`
+- **AI Đặt Câu Hỏi / Làm Rõ**: Khẳng định User không cần nhắc lại thủ công; thiết lập file cấu hình luật hệ thống [GEMINI.md](file:///d:/2026/oracle_ai/GEMINI.md) trong thư mục gốc dự án để Antigravity tự động nạp luật vào system prompt trong mọi phiên làm việc tiếp theo.
+- **User Phản Hồi / Quyết Định**: Tự động hóa việc ghi log.
+- **Kết Quả AI Tạo Ra**: File [GEMINI.md](file:///d:/2026/oracle_ai/GEMINI.md) và tự động cập nhật [docs/promt_log.md](file:///d:/2026/oracle_ai/docs/promt_log.md).
+- **Yêu Cầu Sửa Lại (Revision)**: Không.
+- **Đánh Giá & Hài Lòng**: ✅ Hoàn thành tự động hóa.
