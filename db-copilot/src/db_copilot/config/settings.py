@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     sql_regression_multiplier: float = 3.0
     tablespace_warning_threshold: float = 80.0
     tablespace_critical_threshold: float = 90.0
+    long_running_threshold_sec: int = 1800
 
     @property
     def database_url(self) -> str:

@@ -14,6 +14,8 @@ class IncidentCategory(StrEnum):
     BLOCKING = "BLOCKING"
     TABLESPACE = "TABLESPACE"
     JOB_FAILURE = "JOB_FAILURE"
+    LONG_RUNNING_SESSION = "LONG_RUNNING_SESSION"
+    INVALID_OBJECT = "INVALID_OBJECT"
 
 
 class IncidentStatus(StrEnum):

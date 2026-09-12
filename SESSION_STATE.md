@@ -178,7 +178,62 @@ db-copilot/
 
 ---
 
-### 4. Tài liệu thiết kế & Task breakdown (docs/)
+### 4. db-copilot (Phase 2 — Health & Correlation Engine DONE)
+
+**Tech stack & Features:**
+- `IncidentRepository`: Quản lý vòng đời Incident (OPEN, INVESTIGATING, RESOLVED), truy vấn phân trang, lọc theo severity/category/status, và cơ chế chống trùng lặp sự cố (Deduplication trong cửa sổ thời gian 60 phút).
+- **Bộ 6 Detection Rules tất định (100% Deterministic — không dùng LLM):**
+  - `SqlRegressionRule`: So sánh execution time với baseline ($\ge 3\times$), kiểm tra thay đổi execution plan qua MCP `get_sql_plan_history`.
+  - `BlockingSessionRule`: Phát hiện chuỗi khóa chặn (lock contention), trích xuất root blocker.
+  - `LongRunningSessionRule`: Cảnh báo session chạy quá ngưỡng (> 30 phút, > 1h, > 2h).
+  - `TablespaceThresholdRule`: Cảnh báo dung lượng Tablespace ($\ge 80\%$ Warning, $\ge 90\%$ Critical).
+  - `JobFailureRule`: Phát hiện các DBMS_SCHEDULER jobs bị lỗi trong 24 giờ qua.
+  - `InvalidObjectRule`: Phát hiện package/procedure/trigger/view bị `STATUS = 'INVALID'`.
+- `EvidenceGraph`: Mô hình đồ thị hướng quan hệ bằng chứng (GraphNode, GraphEdge), thuật toán duyệt đồ thị BFS truy vết chuỗi nguyên nhân gốc (`find_causal_chains`, `find_root_causes`).
+- `HypothesisEngine`: Ma trận 5 giả thuyết gốc (`H1_PLAN_REGRESSION`, `H2_LOCK_CONTENTION`, `H3_STATISTICS_STALE`, `H4_RESOURCE_EXHAUSTION`, `H5_CODE_DEFECT`) và thuật toán tính điểm tin cậy (Confidence Score 0.0 - 1.0).
+- `CorrelationEngine`: Điều phối toàn bộ quy trình: Rules Evaluation -> Deduplication -> Causal Graph -> Hypothesis Ranking -> Lưu trữ Incident.
+- **REST API Incidents:**
+  - `GET /api/v1/incidents`: Lọc danh sách sự cố theo status, severity, category, phân trang.
+  - `GET /api/v1/incidents/{id}`: Chi tiết sự cố kèm toàn bộ evidence và chẩn đoán ban đầu.
+  - `PATCH /api/v1/incidents/{id}/resolve`: Đóng sự cố và cập nhật `resolved_at`.
+
+**Files đã tạo/cập nhật:**
+```
+db-copilot/
+├── src/db_copilot/
+│   ├── config/settings.py                  ← Thêm long_running_threshold_sec
+│   ├── domain/enums.py                     ← Bổ sung LONG_RUNNING_SESSION, INVALID_OBJECT
+│   ├── correlation/
+│   │   ├── __init__.py
+│   │   ├── repository.py                   ← IncidentRepository
+│   │   ├── graph.py                        ← EvidenceGraph, GraphNode, GraphEdge, BFS
+│   │   ├── hypothesis_engine.py            ← HypothesisEngine (5 root hypotheses)
+│   │   ├── engine.py                       ← CorrelationEngine Orchestrator
+│   │   └── rules/
+│   │       ├── __init__.py
+│   │       ├── base.py                     ← BaseRule
+│   │       ├── sql_rules.py                ← SqlRegressionRule
+│   │       ├── session_rules.py            ← BlockingSessionRule, LongRunningSessionRule
+│   │       └── storage_rules.py            ← TablespaceThresholdRule, JobFailureRule, InvalidObjectRule
+│   └── api/
+│       ├── app.py                          ← Đăng ký incidents_router
+│       └── routes/
+│           └── incidents.py                ← GET, GET /{id}, PATCH /{id}/resolve
+└── tests/unit/
+    ├── api/test_incidents.py               ← 3 tests ✅
+    └── correlation/
+        ├── test_repository.py              ← 5 tests ✅
+        ├── test_rules.py                   ← 7 tests ✅
+        ├── test_graph.py                   ← 3 tests ✅
+        ├── test_hypothesis.py              ← 3 tests ✅
+        └── test_engine.py                  ← 2 tests ✅
+```
+- Unit tests: **49/49 tests passed** (100% green)
+- Lint: `ruff check .` **All checks passed!**
+
+---
+
+### 5. Tài liệu thiết kế & Task breakdown (docs/)
 ```
 docs/
 ├── 01-product/
@@ -195,11 +250,12 @@ docs/
 │   ├── investigation-engine-design.md     ✅
 │   ├── ai-engine-design.md                ✅
 │   ├── task_evidence.md                   ✅ (ĐÃ HOÀN THÀNH 100% 8/8 giai đoạn)
-│   ├── task_correlation.md                ✅ (Task breakdown chi tiết Phase 2 — 7 giai đoạn)
+│   ├── task_correlation.md                ✅ (ĐÃ HOÀN THÀNH 100% 7/7 giai đoạn)
 │   └── task_investigation_ai.md           ✅ (Task breakdown chi tiết Phase 3 — 9 giai đoạn)
 └── 04-implementation/
-    ├── implementation-plan.md             ✅ (Đã hoàn thành Mục 4.2)
-    └── test-plan.md                       ✅
+    ├── implementation-plan.md             ✅
+    ├── test-plan.md                       ✅
+    └── present.md                         ✅ (Tài liệu báo cáo Tech Leader)
 ```
 
 ---
@@ -207,19 +263,6 @@ docs/
 ## ❌ CHƯA LÀM
 
 ### Implementation Plan — theo thứ tự ưu tiên
-
-#### Phase 2 — Health & Correlation Engine ← **NEXT ACTION**
-> Chi tiết task: [`docs/03-technical/task_correlation.md`](file:///d:/2026/oracle_ai/docs/03-technical/task_correlation.md)
-
-- [ ] **Giai đoạn 1:** `IncidentRepository` & Quản lý vòng đời incident (OPEN, INVESTIGATING, RESOLVED, Deduplication)
-- [ ] **Giai đoạn 2:** 6 Detection Rules tất định (`SqlRegressionRule`, `BlockingSessionRule`, `LongRunningSessionRule`, `TablespaceThresholdRule`, `JobFailureRule`, `InvalidObjectRule`)
-- [ ] **Giai đoạn 3:** `EvidenceGraph` (Node/Edge, causal chain via BFS)
-- [ ] **Giai đoạn 4:** `HypothesisEngine` (Ma trận 5 giả thuyết gốc)
-- [ ] **Giai đoạn 5:** `CorrelationEngine Orchestrator` (Rules -> Graph -> Hypothesis -> Incident)
-- [ ] **Giai đoạn 6:** REST API cho Incidents (`GET /incidents`, `GET /incidents/{id}`, `PATCH /resolve`)
-- [ ] **Giai đoạn 7:** Kiểm thử tổng hợp Phase 2
-
----
 
 #### Phase 3 — AI & Investigation Engine
 > Chi tiết task: [`docs/03-technical/task_investigation_ai.md`](file:///d:/2026/oracle_ai/docs/03-technical/task_investigation_ai.md)
