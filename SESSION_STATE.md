@@ -1,5 +1,5 @@
 # 📌 SESSION STATE — Oracle DB Copilot
-> Cập nhật lần cuối: 2026-09-10 22:45 (GMT+7)
+> Cập nhật lần cuối: 2026-09-12 10:25 (GMT+7)
 
 ---
 
@@ -128,7 +128,57 @@ db-copilot/
 
 ---
 
-### 3. Tài liệu thiết kế & Task breakdown (docs/)
+### 3. db-copilot (Phase 1 — Section 4.2 MCP Client & Evidence Collection DONE)
+
+**Tech stack & Features:**
+- `mcp>=1.0.0` (ClientSession, stdio_client)
+- `apscheduler>=3.10.0,<4.0.0` (AsyncIOScheduler)
+- `OracleMcpClient`: Gateway giao tiếp với oracle-mcp-server qua MCP stdio protocol
+- `EvidenceRepository`: CRUD snapshots, sql_metrics, baselines, evidence, mcp_audit_logs
+- `EvidenceNormalizer`: Chuẩn hóa metrics từ Oracle thành typed Evidence (SQL regression, blocking sessions, tablespace usage, failed jobs, long running sessions, invalid objects)
+- `Collectors`: `SqlCollector` (top SQL & statistics), `SessionCollector` (active/blocking/long-running), `StorageCollector` (tablespace, failed jobs, invalid objects)
+- `BaselineEngine`: Lọc nhiễu ($\mu \pm 2\sigma$), tính mean, stddev, p50, p95 cho SQL execution_time, buffer_gets, disk_reads, cpu_time
+- `EvidenceScheduler`: Quản lý background jobs (5 phút thu thập evidence, 1 giờ cập nhật baseline), tích hợp hoàn chỉnh vào FastAPI lifespan
+
+**Files đã tạo/cập nhật:**
+```
+db-copilot/
+├── src/db_copilot/
+│   ├── config/settings.py                  ← MCP server config & scheduler settings
+│   ├── mcp/
+│   │   ├── __init__.py
+│   │   └── client.py                       ← OracleMcpClient (stdio, error handling, audit)
+│   ├── evidence/
+│   │   ├── __init__.py
+│   │   ├── repository.py                   ← EvidenceRepository
+│   │   ├── baseline_engine.py              ← BaselineEngine (outlier removal, 7-day stats)
+│   │   ├── scheduler.py                    ← EvidenceScheduler (APScheduler AsyncIOScheduler)
+│   │   ├── collectors/
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py                     ← BaseCollector
+│   │   │   ├── sql_collector.py            ← SqlCollector
+│   │   │   ├── session_collector.py        ← SessionCollector
+│   │   │   └── storage_collector.py        ← StorageCollector
+│   │   └── normalizers/
+│   │       ├── __init__.py
+│   │       └── evidence_normalizer.py      ← EvidenceNormalizer
+│   └── api/app.py                          ← Lifespan khởi động/tắt scheduler
+└── tests/
+    ├── conftest.py                         ← Tắt scheduler mặc định khi test
+    └── unit/evidence/
+        ├── test_mcp_client.py              ← 4 tests ✅
+        ├── test_repository.py              ← 4 tests ✅
+        ├── test_normalizer.py              ← 6 tests ✅
+        ├── test_collectors.py              ← 3 tests ✅
+        ├── test_baseline_engine.py         ← 3 tests ✅
+        └── test_scheduler.py               ← 3 tests ✅
+```
+- Unit tests: **26/26 tests passed** (100% green)
+- Lint: `ruff check .` **All checks passed!**
+
+---
+
+### 4. Tài liệu thiết kế & Task breakdown (docs/)
 ```
 docs/
 ├── 01-product/
@@ -144,11 +194,11 @@ docs/
 │   ├── correlation-engine-design.md       ✅
 │   ├── investigation-engine-design.md     ✅
 │   ├── ai-engine-design.md                ✅
-│   ├── task_evidence.md                   ✅ (Task breakdown chi tiết Mục 4.2 — 8 giai đoạn)
+│   ├── task_evidence.md                   ✅ (ĐÃ HOÀN THÀNH 100% 8/8 giai đoạn)
 │   ├── task_correlation.md                ✅ (Task breakdown chi tiết Phase 2 — 7 giai đoạn)
 │   └── task_investigation_ai.md           ✅ (Task breakdown chi tiết Phase 3 — 9 giai đoạn)
 └── 04-implementation/
-    ├── implementation-plan.md             ✅ (đang tracking)
+    ├── implementation-plan.md             ✅ (Đã hoàn thành Mục 4.2)
     └── test-plan.md                       ✅
 ```
 
@@ -158,21 +208,7 @@ docs/
 
 ### Implementation Plan — theo thứ tự ưu tiên
 
-#### Mục 4.2 — db-copilot MCP Client & Evidence Collection ← **NEXT ACTION**
-> Chi tiết task: [`docs/03-technical/task_evidence.md`](file:///d:/2026/oracle_ai/docs/03-technical/task_evidence.md)
-
-- [ ] **Giai đoạn 1: Môi trường & Dependencies** (`mcp`, `apscheduler`, `settings.py`, `.env.example`)
-- [ ] **Giai đoạn 2: Tầng MCP Client Gateway** (`OracleMcpClient`, stdio client, parse JSON, audit logging)
-- [ ] **Giai đoạn 3: Evidence Repository** (PostgreSQL CRUD snapshots, sql_metrics, baselines, evidence)
-- [ ] **Giai đoạn 4: Evidence Normalizer** (chuẩn hóa regression, blocking, tablespace, failed jobs)
-- [ ] **Giai đoạn 5: Collectors** (`SqlCollector`, `SessionCollector`, `StorageCollector`)
-- [ ] **Giai đoạn 6: Baseline Engine** (lọc nhiễu > 2 stddev, tính mean/stddev/p50/p95, đánh giá reliable)
-- [ ] **Giai đoạn 7: Scheduler & Lifespan** (`AsyncIOScheduler`, job 5 phút & 1 giờ, nối vào FastAPI)
-- [ ] **Giai đoạn 8: Unit Tests & Hoàn thiện** (pytest xanh 100%, ruff check sạch)
-
----
-
-#### Phase 2 — Health & Correlation Engine
+#### Phase 2 — Health & Correlation Engine ← **NEXT ACTION**
 > Chi tiết task: [`docs/03-technical/task_correlation.md`](file:///d:/2026/oracle_ai/docs/03-technical/task_correlation.md)
 
 - [ ] **Giai đoạn 1:** `IncidentRepository` & Quản lý vòng đời incident (OPEN, INVESTIGATING, RESOLVED, Deduplication)

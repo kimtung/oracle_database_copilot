@@ -124,13 +124,13 @@ Phase 5 (1-2 tuần)
 
 ### 4.2 db-copilot — MCP Client & Evidence Collection
 
-- [ ] `OracleMcpClient` implementation
-- [ ] `SqlCollector`, `SessionCollector`, `StorageCollector`
-- [ ] `EvidenceNormalizer`
-- [ ] `EvidenceRepository` (PostgreSQL CRUD)
-- [ ] APScheduler setup (5-minute collection)
-- [ ] `BaselineEngine` (hourly recalculation)
-- [ ] Database migration scripts
+- [x] `OracleMcpClient` implementation
+- [x] `SqlCollector`, `SessionCollector`, `StorageCollector`
+- [x] `EvidenceNormalizer`
+- [x] `EvidenceRepository` (PostgreSQL CRUD)
+- [x] APScheduler setup (5-minute collection)
+- [x] `BaselineEngine` (hourly recalculation)
+- [x] Database migration scripts
 
 **Success Criteria:**
 > db-copilot tự động thu thập SQL metrics mỗi 5 phút và lưu vào PostgreSQL.
