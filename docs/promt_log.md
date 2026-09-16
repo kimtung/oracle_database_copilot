@@ -164,3 +164,33 @@ Mỗi mục nhật ký ghi nhận theo cấu trúc:
 - **Yêu Cầu Sửa Lại (Revision)**: Không.
 - **Đánh Giá & Hài Lòng**: ✅ Đầy đủ, minh bạch.
 
+---
+
+### #014 — Phase 3: AI & Investigation Engine — Implementation
+- **Thời gian**: 16/09/2026 13:20 – 21:00
+- **Prompt Người Dùng**: `bắt đầy phase 3`
+- **AI Đặt Câu Hỏi / Làm Rõ**: Đọc domain models hiện tại, đề xuất Implementation Plan gồm 9 giai đoạn, trình bày cho user phê duyệt.
+- **User Phản Hồi / Quyết Định**: ✅ User phê duyệt qua review policy (auto-approve).
+- **Kết Quả AI Tạo Ra**:
+  - `domain/interfaces/llm_provider.py` — LLMProvider ABC
+  - `ai/providers/gemini_provider.py` — GeminiProvider (lazy import, google.genai)
+  - `ai/providers/openai_provider.py` — OpenAIProvider (lazy import, AsyncOpenAI)
+  - `ai/providers/claude_provider.py` — ClaudeProvider (lazy import + JSON extract)
+  - `ai/prompts/diagnosis_prompt.py` — System/User templates (structured JSON output)
+  - `ai/prompts/report_prompt.py` — Daily report templates
+  - `ai/service.py` — AIService (primary→fallback→rule-based, 30s timeout)
+  - `investigation/planner.py` — IntentParser (regex) + InvestigationPlanner
+  - `investigation/context.py` — InvestigationContext (dynamic $step_N.field resolution)
+  - `investigation/executor.py` — InvestigationExecutor (10s timeout/step)
+  - `investigation/source_mapper.py` — SourceCodeMapper (sql_id → PL/SQL fragment)
+  - `investigation/engine.py` — InvestigationEngine (end-to-end orchestrator)
+  - `application/report_service.py` — DailyReportService (health score 0-100)
+  - `application/notification_service.py` — Slack/Teams webhook
+  - `api/routes/investigate.py` — POST/GET /api/v1/investigate
+  - `api/routes/investigate_ws.py` — WS /api/v1/ws/investigate/{id}
+  - `api/routes/reports.py` — GET /api/v1/reports/daily
+  - Updated `config/settings.py`, `domain/models/evidence.py`, `api/app.py`
+  - 44 new tests: test_providers, test_ai_service, test_planner, test_executor, test_engine, test_report_service, test_investigate_api
+  - **93/93 tests pass, ruff check clean, git commit 506b827**
+- **Yêu Cầu Sửa Lại (Revision)**: Có — tự sửa 3 vòng: (1) E501 ruff errors, (2) wrong API names (HypothesisEngine.rank_hypotheses, lazy imports), (3) test mock pattern, Settings.model_validate, ASGITransport.
+- **Đánh Giá & Hài Lòng**: ✅ Phase 3 hoàn thành 100%. 93 tests pass. Toàn bộ AI layer, Investigation Engine và REST/WS API đã sẵn sàng.
