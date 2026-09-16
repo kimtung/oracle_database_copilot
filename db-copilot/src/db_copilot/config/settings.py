@@ -45,6 +45,31 @@ class Settings(BaseSettings):
     tablespace_critical_threshold: float = 90.0
     long_running_threshold_sec: int = 1800
 
+    # Phase 3 — LLM Provider
+    llm_provider: str = "gemini"  # "gemini" | "openai" | "claude"
+    llm_fallback_provider: str = "openai"
+    llm_diagnosis_timeout: float = 30.0
+
+    # Gemini
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.0-flash"
+
+    # OpenAI
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o"
+
+    # Anthropic Claude
+    claude_api_key: str = ""
+    claude_model: str = "claude-3-5-sonnet-20241022"
+
+    # Investigation Engine
+    investigation_step_timeout: float = 10.0  # seconds per MCP tool call
+    investigation_max_steps: int = 10
+
+    # Notifications (optional)
+    slack_webhook_url: str = ""
+    teams_webhook_url: str = ""
+
     @property
     def database_url(self) -> str:
         if self.postgres_url:
@@ -58,3 +83,4 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+

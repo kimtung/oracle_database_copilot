@@ -5,6 +5,9 @@ from fastapi import FastAPI
 
 from db_copilot.api.routes.health import router as health_router
 from db_copilot.api.routes.incidents import router as incidents_router
+from db_copilot.api.routes.investigate import router as investigate_router
+from db_copilot.api.routes.investigate_ws import router as investigate_ws_router
+from db_copilot.api.routes.reports import router as reports_router
 from db_copilot.config.settings import get_settings
 from db_copilot.db.session import close_engine
 from db_copilot.evidence.scheduler import EvidenceScheduler
@@ -41,5 +44,9 @@ def create_app() -> FastAPI:
     # Register API routers
     app.include_router(health_router, prefix=settings.api_v1_prefix)
     app.include_router(incidents_router, prefix=settings.api_v1_prefix)
+    app.include_router(investigate_router, prefix=settings.api_v1_prefix)
+    app.include_router(investigate_ws_router, prefix=settings.api_v1_prefix)
+    app.include_router(reports_router, prefix=settings.api_v1_prefix)
 
     return app
+

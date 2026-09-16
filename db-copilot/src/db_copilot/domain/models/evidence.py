@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
 from db_copilot.domain.enums import EvidenceType, Severity
+
+if TYPE_CHECKING:
+    pass
 
 
 class Evidence(BaseModel):
@@ -21,7 +26,24 @@ class Evidence(BaseModel):
 
 
 class EvidencePackage(BaseModel):
+    """Container passed to LLM for diagnosis.
+
+    Never include Oracle credentials, connection strings, or raw query results.
+    Only sanitized, processed evidence is allowed here.
+    """
+
     incident_id: UUID | None = None
     database_id: UUID | None = None
     evidence: list[Evidence] = Field(default_factory=list)
     context: dict[str, Any] = Field(default_factory=dict)
+
+    # Phase 3 — LLM context fields
+    question: str = ""  # Natural language question from DBA
+    intent: dict[str, Any] = Field(default_factory=dict)  # Parsed IntentResult
+    hypotheses: list[Any] = Field(default_factory=list)  # list[Hypothesis]
+    database_name: str = ""
+    investigation_timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    sql_details: dict[str, Any] | None = None   # SQL text + plan summary (sanitized)
+    source_fragment: str | None = None           # PL/SQL source fragment (±20 lines max)
+    baseline_data: dict[str, Any] | None = None  # Historical baseline comparison
+
