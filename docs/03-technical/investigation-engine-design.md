@@ -104,16 +104,16 @@ User Question
 
 ### 4.1 Supported Intent Types
 
-| IntentType | Ví dụ câu hỏi |
-|---|---|
-| `PROCEDURE_SLOW` | "Why was PROC_SETTLEMENT slow at 14:32?" |
-| `SQL_SLOW` | "Why was SQL_ID 8f3abc slow yesterday?" |
-| `SQL_TOP` | "Which SQL is slowest today?" |
-| `HEALTH_CHECK` | "What issues does the database have?" |
-| `BLOCKING_CHECK` | "Is there any blocking?" |
-| `TABLESPACE_CHECK` | "How is the storage looking?" |
-| `JOB_CHECK` | "Did any jobs fail today?" |
-| `GENERAL_INCIDENT` | "What happened to the database last night?" |
+| IntentType | Ví dụ câu hỏi | Plan xử lý |
+|---|---|---|
+| `PROCEDURE_SLOW` | "Why was PROC_SETTLEMENT slow at 14:32?" | 9 steps (có fallback dependency) |
+| `SQL_SLOW` | "Why was SQL_ID 8f3abc slow yesterday?" | 8 steps (kèm statistics check) |
+| `SQL_TOP` | "Which SQL is slowest today?" | 3 steps (top sql, statistics, plan) |
+| `HEALTH_CHECK` | "What issues does the database have?" | 7 steps tổng quát |
+| `BLOCKING_CHECK` | "Is there any blocking?" | 4 steps (blocking chains, sessions) |
+| `TABLESPACE_CHECK` | "How is the storage looking?" | 3 steps (tablespaces, datafiles) |
+| `JOB_CHECK` | "Did any jobs fail today?" | 3 steps (scheduler jobs, failed jobs) |
+| `GENERAL_INCIDENT` | "What happened to the database last night?" | **[IE-07] Tự động map sang `HEALTH_CHECK` plan** |
 
 ### 4.2 Intent Schema
 
@@ -139,35 +139,70 @@ class TimeRange:
     is_approximate: bool = True  # True nếu LLM suy ra từ "at 14:32"
 ```
 
-### 4.3 Intent Parsing
+### 4.3 Intent Parsing (LLM + Heuristic Regex Fallback)
 
 ```python
 # src/db_copilot/investigation/planner.py
+import re
 
 class IntentParser:
     """
-    Dùng LLM để parse natural language thành InvestigationIntent.
-    Separate LLM call, nhỏ và nhanh.
+    Parse natural language thành InvestigationIntent.
+    Ưu tiên LLM call nhỏ, tự động fallback sang Regex Patterns khi LLM offline/timeout.
     """
 
     SYSTEM_PROMPT = """
     You are an Oracle Database investigation assistant.
-    Parse the user's question and extract:
-    - intent type (from predefined list)
-    - entities (procedure names, SQL IDs, table names, job names)
-    - time range (derive from "at 14:32", "yesterday", "this morning", etc.)
-    - focus metric
-
+    Parse the user's question and extract: intent type, entities, time range, focus metric.
     Return JSON only. Current time: {current_time}
     """
 
+    # [IE-06] Regex Fallback Patterns
+    _PATTERNS = {
+        IntentType.BLOCKING_CHECK: r"\b(block|blocking|lock|deadlock|contention)\b",
+        IntentType.PROCEDURE_SLOW: r"\b(proc|procedure|package)\b.{0,30}\b(slow|latency|hang)\b",
+        IntentType.SQL_SLOW: r"\b(sql_id|sql|query)\b.{0,30}\b(slow|regression)\b|\b[a-z0-9]{13}\b",
+        IntentType.TABLESPACE_CHECK: r"\b(tablespace|disk|storage|full)\b",
+        IntentType.JOB_CHECK: r"\b(job|scheduler|failed job)\b",
+    }
+
     async def parse(self, question: str) -> InvestigationIntent:
-        response = await self.llm.complete(
-            system=self.SYSTEM_PROMPT.format(current_time=datetime.utcnow()),
-            user=question,
-            response_format="json"
+        try:
+            response = await asyncio.wait_for(
+                self.llm.complete(
+                    system=self.SYSTEM_PROMPT.format(current_time=datetime.utcnow()),
+                    user=question,
+                    response_format="json"
+                ),
+                timeout=5.0
+            )
+            data = json.loads(response)
+            # [IE-07] Map GENERAL_INCIDENT sang HEALTH_CHECK
+            if data.get("type") == "GENERAL_INCIDENT":
+                data["type"] = "HEALTH_CHECK"
+            return InvestigationIntent(**data)
+        except Exception as err:
+            logger.warning(f"LLM intent parsing failed ({err}), falling back to regex heuristic parser.")
+            return self._regex_fallback(question)
+
+    def _regex_fallback(self, question: str) -> InvestigationIntent:
+        q = question.lower()
+        for intent_type, pattern in self._PATTERNS.items():
+            if re.search(pattern, q):
+                return InvestigationIntent(
+                    type=intent_type,
+                    entities=[Entity(type="UNKNOWN", name="")],
+                    time_range=TimeRange(begin=datetime.utcnow()-timedelta(hours=1), end=datetime.utcnow()),
+                    focus_metric="general",
+                    question_text=question
+                )
+        return InvestigationIntent(
+            type=IntentType.HEALTH_CHECK,
+            entities=[],
+            time_range=TimeRange(begin=datetime.utcnow()-timedelta(hours=1), end=datetime.utcnow()),
+            focus_metric="general",
+            question_text=question
         )
-        return InvestigationIntent(**json.loads(response))
 ```
 
 ---
@@ -187,6 +222,13 @@ def plan_procedure_slow(intent: InvestigationIntent) -> InvestigationPlan:
              args={"name": proc_name, "type": "PROCEDURE", "owner": intent.entities[0].owner},
              produces="proc_metadata"),
 
+        # [IE-02] Fallback: Lấy dependencies của procedure để cross-reference với ASH/V$SQL
+        # Tránh trường hợp hệ thống bận không lọc được top_sql_id thực sự thuộc về procedure
+        Step("get_object_dependencies",
+             args={"name": proc_name, "type": "PROCEDURE", "owner": intent.entities[0].owner},
+             produces="proc_dependencies",
+             optional=True),
+
         Step("get_ash_sql_activity",
              args={"begin_time": t_begin, "end_time": t_end},
              produces="ash_activity"),
@@ -203,6 +245,7 @@ def plan_procedure_slow(intent: InvestigationIntent) -> InvestigationPlan:
              args={"sql_id": DependsOn("sql_stats", extract="sql_id"), "hours": 4},
              produces="wait_events"),
 
+        # [IE-03] Sử dụng đúng tham số snapshot IDs đã được resolve
         Step("get_awr_sql_stats",
              args={
                  "sql_id": DependsOn("sql_stats", extract="sql_id"),
@@ -223,7 +266,7 @@ def plan_procedure_slow(intent: InvestigationIntent) -> InvestigationPlan:
              args={"name": proc_name, "type": "PROCEDURE",
                    "owner": DependsOn("proc_metadata", extract="owner")},
              produces="source_code",
-             optional=True),  # Không fail investigation nếu không lấy được
+             optional=True),
     ])
 ```
 
@@ -237,8 +280,14 @@ def plan_sql_slow(intent: InvestigationIntent) -> InvestigationPlan:
         Step("get_sql_statistics", args={"sql_id": sql_id}, produces="sql_stats"),
         Step("get_sql_plan_history", args={"sql_id": sql_id, "days": 7}, produces="plan_history"),
         Step("get_sql_wait_events", args={"sql_id": sql_id, "hours": 24}, produces="wait_events"),
+        # [IE-03] AWR stats thống nhất truyền snapshot range hoặc days được hỗ trợ
         Step("get_awr_sql_stats", args={"sql_id": sql_id, "days": 1}, produces="awr_stats"),
         Step("get_sql_execution_context", args={"sql_id": sql_id}, produces="context"),
+        # [IE-08] Kiểm tra statistics freshness cho các tables tham chiếu trong SQL
+        Step("get_object_metadata",
+             args={"name": DependsOn("context", extract="referenced_table"), "type": "TABLE"},
+             produces="table_stats",
+             optional=True),
         Step("get_blocking_sessions", args={}, produces="blocking"),
         Step("get_resource_usage", args={}, produces="resource"),
     ])
@@ -275,32 +324,18 @@ class InvestigationExecutor:
         # 2. Create plan
         plan = self.planner.create_plan(intent)
 
-        # 3. Execute steps
+        # 3. Execute steps (Hỗ trợ dependency wave để chạy song song các tool độc lập)
         context = InvestigationContext()
 
-        for step in plan.steps:
-            try:
-                # Resolve dynamic dependencies
-                resolved_args = self._resolve_args(step.args, context)
+        # [IE-05] Phân nhóm các steps thành từng wave:
+        # Wave 1 (Độc lập): metadata, dependencies, ash_activity, blocking, resource
+        # Wave 2 (Phụ thuộc vào Wave 1): sql_stats, table_stats
+        # Wave 3 (Phụ thuộc vào sql_stats): plan_history, wait_events, awr_stats, source_code
+        step_waves = self._group_into_waves(plan.steps)
 
-                # Call oracle-mcp-server
-                result = await asyncio.wait_for(
-                    self.mcp_client.call_tool(step.tool, resolved_args),
-                    timeout=10.0  # 10 second timeout per tool
-                )
-
-                context.add_result(step.produces, result)
-
-            except asyncio.TimeoutError:
-                context.add_error(step.produces, "timeout")
-                if not step.optional:
-                    # Log warning but continue
-                    logger.warning(f"Step {step.tool} timed out")
-
-            except Exception as e:
-                context.add_error(step.produces, str(e))
-                if not step.optional:
-                    logger.error(f"Step {step.tool} failed: {e}")
+        for wave in step_waves:
+            tasks = [self._execute_single_step(step, context) for step in wave]
+            await asyncio.gather(*tasks)
 
         # 4. Build evidence
         evidence_list = self.evidence_builder.build_from_context(context, intent)
@@ -309,14 +344,13 @@ class InvestigationExecutor:
         # 5. Generate hypotheses
         hypotheses = self.correlation_engine.rank_hypotheses(evidence_list)
 
-        # 6. AI diagnosis
+        # 6. AI diagnosis — [IE-01] Align chuẩn 100% với schema EvidencePackage
         package = EvidencePackage(
             question=question,
-            intent=intent,
+            intent=intent.__dict__,
             evidence=evidence_list,
             hypotheses=hypotheses,
-            graph=graph,
-            context_data=context.to_dict()
+            context={"graph": graph, **context.to_dict()}
         )
         diagnosis = await self.ai_service.diagnose(package)
 
@@ -330,15 +364,47 @@ class InvestigationExecutor:
             duration_seconds=context.elapsed_seconds
         )
 
-    def _resolve_args(self, args: dict, context: InvestigationContext) -> dict:
-        """Resolve DependsOn references to actual values from previous step results."""
+    async def _execute_single_step(self, step: Step, context: InvestigationContext):
+        try:
+            # [IE-04] Resolve dynamic dependencies với kiểm tra None an toàn
+            resolved_args, has_missing_dep = self._resolve_args(step.args, context)
+            if has_missing_dep:
+                msg = f"Skipping step {step.tool}: required upstream dependency evaluated to None"
+                context.add_error(step.produces, msg)
+                logger.warning(msg)
+                return
+
+            # Call oracle-mcp-server với 10s timeout
+            result = await asyncio.wait_for(
+                self.mcp_client.call_tool(step.tool, resolved_args),
+                timeout=10.0
+            )
+            context.add_result(step.produces, result)
+
+        except asyncio.TimeoutError:
+            context.add_error(step.produces, "timeout")
+            logger.warning(f"Step {step.tool} timed out")
+
+        except Exception as e:
+            context.add_error(step.produces, str(e))
+            logger.error(f"Step {step.tool} failed: {e}")
+
+    def _resolve_args(self, args: dict, context: InvestigationContext) -> tuple[dict, bool]:
+        """
+        [IE-04] Resolve DependsOn references.
+        Trả về (resolved_args, has_missing_dep). Nếu dependency bắt buộc bị None -> báo cờ để skip.
+        """
         resolved = {}
+        has_missing_dep = False
         for key, value in args.items():
             if isinstance(value, DependsOn):
-                resolved[key] = context.extract(value.source, value.path)
+                extracted = context.extract(value.source, value.path)
+                if extracted is None:
+                    has_missing_dep = True
+                resolved[key] = extracted
             else:
                 resolved[key] = value
-        return resolved
+        return resolved, has_missing_dep
 ```
 
 ---

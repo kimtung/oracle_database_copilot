@@ -194,3 +194,119 @@ Mỗi mục nhật ký ghi nhận theo cấu trúc:
   - **93/93 tests pass, ruff check clean, git commit 506b827**
 - **Yêu Cầu Sửa Lại (Revision)**: Có — tự sửa 3 vòng: (1) E501 ruff errors, (2) wrong API names (HypothesisEngine.rank_hypotheses, lazy imports), (3) test mock pattern, Settings.model_validate, ASGITransport.
 - **Đánh Giá & Hài Lòng**: ✅ Phase 3 hoàn thành 100%. 93 tests pass. Toàn bộ AI layer, Investigation Engine và REST/WS API đã sẵn sàng.
+
+---
+
+### #015 — Làm mịn tài liệu kỹ thuật ai-engine-design.md
+- **Thời gian**: 16/09/2026 23:15
+- **Prompt Người Dùng**: `làm mịn theo góp ý trong ảnh @[docs/03-technical/ai-engine-design.md]`
+- **AI Đặt Câu Hỏi / Làm Rõ**: Phân tích 10 điểm góp ý trong ảnh ([AI-01] đến [AI-10]), bao gồm các lỗi Critical (runtime crash, duplicate class definition), High (Claude model ID cũ, thiếu prompt caching, thiếu parse_intent), và Medium (max_tokens quá thấp, thiếu temperature, evidence quá dài, thiếu retry loop, mismatch report section).
+- **User Phản Hồi / Quyết Định**: Đồng ý tiến hành làm mịn trực tiếp file `docs/03-technical/ai-engine-design.md`.
+- **Kết Quả AI Tạo Ra**:
+  - Sửa `ClaudeProvider`: dùng `tool_use` (chức năng native của Claude) để đảm bảo output structured JSON mà không sợ thiếu hàm `_extract_json`, bổ sung `cache_control: {"type": "ephemeral"}` cho prompt caching, cập nhật model `claude-sonnet-4-6`, thêm `temperature=0.1`.
+  - Hợp nhất 2 định nghĩa rời rạc của `AIService` thành 1 class duy nhất chứa cả `diagnose()` lẫn `generate_daily_report()`.
+  - Triển khai đầy đủ `parse_intent()` và filter evidence (`CRITICAL`, `HIGH`, `MEDIUM`) cho cả OpenAI, Claude và Gemini.
+  - Nâng `max_tokens=4096` tránh truncate JSON diagnosis phức tạp; bổ sung vòng lặp retry 2 lần nếu JSON format bị lỗi.
+  - Chuẩn hoá `section_type="full_report"` trên toàn bộ interfaces và implementations.
+- **Yêu Cầu Sửa Lại (Revision)**: Không.
+- **Đánh Giá & Hài Lòng**: ✅ Hoàn thành làm mịn 10/10 điểm trong `ai-engine-design.md`.
+
+
+---
+
+### #016 — Làm mịn và Review kiến trúc LLD (Low-Level Design)
+- **Thời gian**: 16/09/2026 23:15
+- **Prompt Người Dùng**: `tôi đang làm mịn và review lại @docs/02-architecture/lld.md` (kèm ảnh feedback LLD review: [LLD-01], [LLD-02], [LLD-03])
+- **AI Đặt Câu Hỏi / Làm Rõ**: Phân tích 3 vấn đề kỹ thuật trọng yếu được chỉ ra trong review:
+  1. `[LLD-01]` Hiệu năng MCP Client: Khắc phục việc spawn tiến trình Python cho mỗi tool call gây overhead 2-3s (khiến chuỗi 9 bước vượt SLA 60s) bằng việc chuyển dịch sang kiến trúc **SSE Transport với Persistent Connection**.
+  2. `[LLD-02]` Vi phạm bảo mật credentials: Loại bỏ hoàn toàn biến môi trường Oracle DB (`ORACLE_USER`, `ORACLE_PASSWORD`, `ORACLE_DSN`) ra khỏi cấu hình `db-copilot`, phân định ranh giới an toàn tuyệt đối, chỉ để `oracle-mcp-server` lưu giữ credentials nội bộ.
+  3. `[LLD-03]` Thiếu tài liệu so sánh LLM Provider trade-offs: Bổ sung bảng đối sánh đa chiều (Cost, Latency, JSON Reliability, Oracle SQL Reasoning, Context Window) giữa OpenAI (GPT-4o, GPT-4o-mini), Anthropic (Claude 3.5 Sonnet) và Google (Gemini 2.0 Flash, Gemini 1.5 Pro).
+- **User Phản Hồi / Quyết Định**: Đồng thuận cập nhật và chuẩn hóa trực tiếp vào tài liệu thiết kế.
+- **Kết Quả AI Tạo Ra**:
+  - Cập nhật [docs/02-architecture/lld.md](file:///d:/2026/oracle_ai/docs/02-architecture/lld.md):
+    - Mục 5: Viết lại kiến trúc `OracleMcpClient` sử dụng `sse_client` với persistent session lifecycle (`connect()`, `disconnect()`, `call_tool()`).
+    - Mục 6: Loại bỏ credentials khỏi `db-copilot/.env`, thêm mục 6.3 ma trận so sánh trade-offs các LLM Provider và hướng dẫn lựa chọn cho khách hàng doanh nghiệp.
+    - Mục 11 & 12: Đồng bộ phiên bản tiếng Anh với kiến trúc SSE Transport và bảo mật credentials.
+  - Cập nhật tự động [docs/promt_log.md](file:///d:/2026/oracle_ai/docs/promt_log.md).
+- **Yêu Cầu Sửa Lại (Revision)**: Không.
+- **Đánh Giá & Hài Lòng**: ✅ Hoàn thành làm mịn tài liệu LLD chuẩn xác theo toàn bộ các mục review.
+
+---
+
+### #017 — Làm mịn tài liệu kỹ thuật Evidence Engine Design (docs/03-technical/evidence-engine-design.md)
+- **Thời gian**: 16/09/2026 23:22
+- **Prompt Người Dùng**: `@[docs/03-technical/evidence-engine-design.md] chỉnh sửa theo góp ý trong ảnh` (kèm 2 ảnh feedback review [EE-01] đến [EE-05])
+- **AI Đặt Câu Hỏi / Làm Rõ**: Phân tích toàn bộ 5 vấn đề:
+  1. `[EE-01]` (CRITICAL): `Evidence` dataclass thiếu required fields (`id=uuid4()`, `incident_id=None`, `timestamp=datetime.utcnow()`) trong normalizer và session collector gây runtime `TypeError`.
+  2. `[EE-02]` (CRITICAL): Hàm `_remove_outliers()` chưa được implement trong `BaselineEngine` gây `AttributeError`.
+  3. `[EE-03]` (HIGH): Vòng lặp `N SQL IDs × 24 giờ × 7 ngày = 16,800 DB queries/giờ` làm tê liệt kết nối DB. Thay bằng **1 single PostgreSQL aggregation query** với hàm window `PERCENTILE_CONT(0.5)` và `PERCENTILE_CONT(0.95)`.
+  4. `[EE-04]` (LOW): `SqlCollector` chỉ lấy `elapsed_time`. Bổ sung thu thập theo cả `cpu_time` và `disk_reads` để nhận diện CPU hogs và IO hogs.
+  5. `[EE-05]` (LOW): `ON CONFLICT DO NOTHING` thiếu explicit conflict key gây lỗi cú pháp PostgreSQL. Sửa thành `ON CONFLICT (database_id, sql_id, captured_at) DO NOTHING`.
+- **User Phản Hồi / Quyết Định**: Đồng ý cập nhật trực tiếp vào file `docs/03-technical/evidence-engine-design.md`.
+- **Kết Quả AI Tạo Ra**:
+  - Cập nhật [docs/03-technical/evidence-engine-design.md](file:///d:/2026/oracle_ai/docs/03-technical/evidence-engine-design.md) toàn bộ các mục 5.2, 5.3, 6, 7, 8 và các mục tiếng Anh 10, 12, 13.
+  - Cập nhật tự động [docs/promt_log.md](file:///d:/2026/oracle_ai/docs/promt_log.md).
+- **Yêu Cầu Sửa Lại (Revision)**: Không.
+- **Đánh Giá & Hài Lòng**: ✅ Hoàn thành làm mịn đầy đủ và chính xác 5/5 điểm trong `evidence-engine-design.md`.
+
+---
+
+### #018 — Làm mịn tài liệu kỹ thuật Oracle MCP Server Design (docs/03-technical/oracle-mcp-design.md)
+- **Thời gian**: 16/09/2026 23:25
+- **Prompt Người Dùng**: `@[docs/03-technical/oracle-mcp-design.md] chỉnh sửa theo góp ý trong ảnh` (kèm ảnh feedback review [MCP-01] đến [MCP-04])
+- **AI Đặt Câu Hỏi / Làm Rõ**: Phân tích 4 vấn đề kỹ thuật:
+  1. `[MCP-01]` (HIGH): Thiếu quyền `SYS.V_$DIAG_ALERT_EXT` dẫn đến lỗi `ORA-00942` khi tool `get_alert_events` truy vấn.
+  2. `[MCP-02]` (HIGH): Thiếu quyền `SYS.V_$ARCHIVED_LOG` trong file grant dẫn đến lỗi khi chạy tool `get_redo_statistics`.
+  3. `[MCP-03]` (HIGH): Audit Log bị mất khi chạy Stdio Mode do stderr bị discard nếu parent process không chủ động capture. Cần bổ sung ghi ra file xoay vòng (Rotating File Handler) để đáp ứng chuẩn SOC2/Compliance cho thương mại hoá.
+  4. `[MCP-04]` (MEDIUM): Trích xuất `sql_statements` trong PL/SQL Source Code bằng parsing AST toàn diện là bài toán khó. Cần làm rõ phạm vi MVP dùng regex-based cho static DML và document rõ giới hạn (không hỗ trợ Dynamic SQL).
+- **User Phản Hồi / Quyết Định**: Đồng ý tiến hành cập nhật trực tiếp file tài liệu `docs/03-technical/oracle-mcp-design.md`.
+- **Kết Quả AI Tạo Ra**:
+  - Cập nhật mục 6 và 12 của [docs/03-technical/oracle-mcp-design.md](file:///d:/2026/oracle_ai/docs/03-technical/oracle-mcp-design.md): Bổ sung `RotatingFileHandler` cho file `logs/mcp_audit.log` (10MB x 5 backups) chạy song song với stderr.
+  - Cập nhật mục 7 và 11: Bổ sung `GRANT SELECT ON SYS.V_$ARCHIVED_LOG` và `GRANT SELECT ON SYS.V_$DIAG_ALERT_EXT` vào danh mục phân quyền Oracle.
+  - Cập nhật mục 8.3: Bổ sung ghi chú kỹ thuật `[MCP-04]` làm rõ giải pháp heuristic regex cho static DML và giới hạn không hỗ trợ Dynamic SQL.
+- **Yêu Cầu Sửa Lại (Revision)**: Không.
+- **Đánh Giá & Hài Lòng**: ✅ Hoàn thành làm mịn 4/4 điểm trong `oracle-mcp-design.md`.
+
+---
+
+### #019 — Chỉnh sửa tài liệu kỹ thuật Correlation Engine Design (docs/03-technical/correlation-engine-design.md)
+- **Thời gian**: 16/09/2026 23:28
+- **Prompt Người Dùng**: `chỉnh sửa @[docs/03-technical/correlation-engine-design.md] theo góp ý trong ảnh` (kèm ảnh feedback review [CE-01] đến [CE-07])
+- **AI Đặt Câu Hỏi / Làm Rõ**: Phân tích 7 vấn đề kỹ thuật từ ảnh:
+  1. `[CE-01]` (HIGH): `SqlRegressionRule` gọi MCP bên trong detection rule vi phạm nguyên tắc kiến trúc (rule phải deterministic, không phụ thuộc MCP call đồng bộ). Chuyển sang so sánh `plan_hash_value` của current metric với metric trước đó từ PostgreSQL.
+  2. `[CE-02 + CE-03]` (HIGH): `EvidenceGraph` không được liên kết trong MVP correlation loop (`add_relationship` không được gọi, các core methods rỗng). Làm rõ phạm vi: MVP correlation dùng flat evidence list; `EvidenceGraph` cùng thuật toán BFS causal chain phục vụ chuyên biệt cho Investigation Engine (Phase 3).
+  3. `[CE-04]` (MEDIUM): "Data Volume Increase" hypothesis có `required_evidence: []` dẫn tới luôn xuất hiện ở 0.40 confidence gây noise. Bổ sung `"required_evidence": [EvidenceType.CARDINALITY_MISMATCH]`.
+  4. `[CE-05]` (MEDIUM): Thiếu cơ chế incident deduplication (SQL chậm 30 phút sinh 6 incidents riêng biệt). Bổ sung cơ chế deduplication: tra cứu incident đang `OPEN` cùng `(database_id, category, entity_id)` trong vòng 60 phút, merge evidence và update severity thay vì tạo mới.
+  5. `[CE-06]` (MEDIUM): `BlockingSessionRule` mặc định mọi blocking là `HIGH` gây alert fatigue. Phân tầng thang đo severity: Wait < 30s + <= 2 sessions -> `MEDIUM`, Wait 30-300s HOẶC 3-9 sessions -> `HIGH`, Wait > 300s HOẶC >= 10 sessions -> `CRITICAL`.
+  6. `[CE-07]` (MEDIUM): Bổ sung đặc tả implementation chi tiết cho `LongRunningSessionRule` và `InvalidObjectRule` trong Mục 3.
+  7. Đồng bộ hoá toàn diện cả 2 phần Tiếng Việt và English Section.
+- **User Phản Hồi / Quyết Định**: Đồng ý cập nhật trực tiếp vào file tài liệu `docs/03-technical/correlation-engine-design.md`.
+- **Kết Quả AI Tạo Ra**:
+  - Cập nhật [docs/03-technical/correlation-engine-design.md](file:///d:/2026/oracle_ai/docs/03-technical/correlation-engine-design.md) tại Mục 3.1, 3.2, 3.5, 3.6, 4, 5, 6, 8, 9, 10, 11, 12.
+  - Tự động cập nhật [docs/promt_log.md](file:///d:/2026/oracle_ai/docs/promt_log.md).
+- **Yêu Cầu Sửa Lại (Revision)**: Không.
+- **Đánh Giá & Hài Lòng**: ✅ Hoàn thành làm mịn 7/7 điểm kỹ thuật trong `correlation-engine-design.md`.
+
+---
+
+### #019 — Làm mịn tài liệu kỹ thuật Investigation Engine Design (docs/03-technical/investigation-engine-design.md)
+- **Thời gian**: 16/09/2026 23:28
+- **Prompt Người Dùng**: `chỉnh sửa theo góp ý trong ảnh @[docs/03-technical/investigation-engine-design.md]` (kèm 2 ảnh feedback review [IE-01] đến [IE-08])
+- **AI Đặt Câu Hỏi / Làm Rõ**: Phân tích toàn bộ 8 điểm kỹ thuật:
+  1. `[IE-01]` (CRITICAL): `EvidencePackage` khởi tạo sai schema (truyền `graph` và `context_data` không tồn tại trong class definition gây runtime crash). Đồng bộ đóng gói vào `context={"graph": graph, ...}`.
+  2. `[IE-02]` (CRITICAL): Plan `PROCEDURE_SLOW` dùng `get_ash_sql_activity` không filter theo procedure/module name, dễ lấy nhầm top_sql của query khác trong hệ thống bận. Bổ sung step fallback gọi `get_object_dependencies` để lấy danh sách objects/tables mà procedure access để cross-reference.
+  3. `[IE-03]` (HIGH): Mismatch tham số `get_awr_sql_stats` (truyền `days: 1` trong khi tool định nghĩa `begin_snap`, `end_snap`). Thống nhất sử dụng snapshot IDs được resolve từ ASH activity hoặc truyền range hợp lệ.
+  4. `[IE-04]` (HIGH): `DependsOn` fails silently khi giá trị trả về là `None` dẫn đến gọi tool hạ nguồn với `sql_id=None`. Bổ sung kiểm tra tường minh: nếu required dependency bị `None` thì skip step và log explicit warning vào `context.errors`.
+  5. `[IE-05]` (MEDIUM): Các bước trong plan chạy tuần tự (9 steps × 10s = 90s, vượt SLA 60s). Gom nhóm các bước độc lập (metadata, dependencies, ash, blocking, resource) thành từng wave và chạy song song bằng `asyncio.gather()`.
+  6. `[IE-06]` (MEDIUM): `IntentParser` không có cơ chế fallback khi LLM gặp sự cố hoặc timeout. Bổ sung regex heuristic fallback cho các intent phổ biến.
+  7. `[IE-07]` (MEDIUM): `GENERAL_INCIDENT` intent không có plan riêng. Thống nhất tự động map sang `HEALTH_CHECK` plan.
+  8. `[IE-08]` (MEDIUM): Plan `SQL_SLOW` thiếu bước kiểm tra statistics staleness (nguyên nhân hàng đầu gây plan regression). Bổ sung step gọi `get_object_metadata` kiểm tra thống kê bảng liên quan.
+- **User Phản Hồi / Quyết Định**: Đồng ý tiến hành cập nhật trực tiếp file tài liệu `docs/03-technical/investigation-engine-design.md`.
+- **Kết Quả AI Tạo Ra**:
+  - Cập nhật mục 4.1, 4.3 của [docs/03-technical/investigation-engine-design.md](file:///d:/2026/oracle_ai/docs/03-technical/investigation-engine-design.md): Thêm regex fallback cho IntentParser và mapping `GENERAL_INCIDENT` -> `HEALTH_CHECK`.
+  - Cập nhật mục 5.1 & 5.2: Bổ sung dependency fallback `get_object_dependencies` trong procedure plan, bổ sung `get_object_metadata` kiểm tra table stats trong SQL plan, chuẩn hoá tham số AWR stats.
+  - Cập nhật mục 6: Viết lại `InvestigationExecutor` với cơ chế Wave Parallel (`asyncio.gather`), kiểm tra `DependsOn` tránh `None` downstream, và align 100% schema `EvidencePackage`.
+- **Yêu Cầu Sửa Lại (Revision)**: Không.
+- **Đánh Giá & Hài Lòng**: ✅ Hoàn thành làm mịn 8/8 điểm trong `investigation-engine-design.md`.
+
+

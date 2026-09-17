@@ -153,18 +153,27 @@ class SqlCollector:
     async def collect(self):
         """
         Chu kỳ: mỗi 5 phút
-        1. Gọi get_top_sql từ oracle-mcp-server
-        2. Normalize thành SqlMetric objects
-        3. Lưu vào PostgreSQL
-        4. Trigger correlation rules
+        1. Gọi get_top_sql đa chiều (elapsed_time, cpu_time, disk_reads) để phát hiện
+           cả latency spikes, CPU hogs và IO hogs ([EE-04]).
+        2. Deduplicate theo sql_id và normalize thành SqlMetric objects.
+        3. Lưu snapshot và metrics vào PostgreSQL (ON CONFLICT explicit key).
+        4. Trigger correlation detection rules.
         """
-        raw = await self.mcp.call_tool("get_top_sql", {
-            "metric": "elapsed_time",
-            "limit": 100,
-            "hours": 1
-        })
+        metrics_by_sql_id: dict[str, SqlMetric] = {}
 
-        metrics = [SqlMetric.from_mcp_response(item) for item in raw]
+        # Thu thập theo 3 chiều đo lường cốt lõi ([EE-04])
+        for sort_metric in ["elapsed_time", "cpu_time", "disk_reads"]:
+            raw = await self.mcp.call_tool("get_top_sql", {
+                "metric": sort_metric,
+                "limit": 50,
+                "hours": 1
+            })
+            for item in raw:
+                metric = SqlMetric.from_mcp_response(item)
+                # Giữ lại hoặc merge metric mới nhất
+                metrics_by_sql_id[metric.sql_id] = metric
+
+        metrics = list(metrics_by_sql_id.values())
 
         async with self.repo.session() as session:
             snapshot = await session.create_snapshot()
@@ -187,10 +196,16 @@ class SessionCollector:
         - Long running sessions (get_long_running_sessions)
         """
         blocking = await self.mcp.call_tool("get_blocking_sessions", {})
-        if blocking["total_blocked"] > 0:
-            # Immediate: tạo evidence và incident
+        if blocking.get("total_blocked", 0) > 0:
+            # Immediate: tạo evidence với đầy đủ required fields ([EE-01])
             evidence = Evidence(
+                id=uuid4(),
+                incident_id=None,
                 type=EvidenceType.BLOCKING_SESSION,
+                source="V$SESSION / get_blocking_sessions",
+                timestamp=datetime.utcnow(),
+                entity_type="SESSION",
+                entity_id=str(blocking.get("root_blocker_sid", "UNKNOWN")),
                 severity=Severity.HIGH,
                 data=blocking
             )
@@ -203,6 +218,9 @@ class SessionCollector:
 
 ```python
 # src/db_copilot/evidence/normalizers/evidence_normalizer.py
+
+from uuid import uuid4
+from datetime import datetime
 
 class EvidenceNormalizer:
     """
@@ -223,9 +241,13 @@ class EvidenceNormalizer:
         if ratio < multiplier:
             return None  # Không regression
 
+        # Cung cấp đầy đủ required fields để tránh TypeError/Runtime Crash ([EE-01])
         return Evidence(
+            id=uuid4(),
+            incident_id=None,
             type=EvidenceType.SQL_REGRESSION,
             source="sql_metrics + sql_baselines",
+            timestamp=datetime.utcnow(),
             entity_type="SQL",
             entity_id=current.sql_id,
             severity=self._severity_from_ratio(ratio),
@@ -257,6 +279,8 @@ class EvidenceNormalizer:
 
 class EvidenceRepository:
     async def upsert_sql_metric(self, metric: SqlMetric, snapshot_id: UUID):
+        # Bắt buộc khai báo explicit conflict target (database_id, sql_id, captured_at)
+        # để tuân thủ cú pháp PostgreSQL ([EE-05])
         await db.execute(
             """
             INSERT INTO sql_metrics (database_id, snapshot_id, sql_id, captured_at,
@@ -265,7 +289,7 @@ class EvidenceRepository:
             VALUES (:database_id, :snapshot_id, :sql_id, :captured_at,
                 :executions, :elapsed_time_ms, :cpu_time_ms, :buffer_gets,
                 :disk_reads, :rows_processed, :plan_hash_value)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (database_id, sql_id, captured_at) DO NOTHING
             """,
             metric.dict()
         )
@@ -293,55 +317,84 @@ class EvidenceRepository:
 
 ## 8. Baseline Calculation
 
+### 8.1 Vấn đề N+1 Query & Giải pháp Aggregation SQL ([EE-03])
+Thay vì lặp 3 vòng lồng nhau `N SQL IDs × 24 giờ × 7 ngày = 16,800 DB queries/giờ` làm quá tải kết nối và I/O, hệ thống sử dụng **1 single SQL aggregation query** trực tiếp trong PostgreSQL kết hợp hàm window thống kê `PERCENTILE_CONT`:
+
+```sql
+-- Query tính toán toàn bộ baseline 7 ngày chỉ với 1 lượt quét ([EE-03])
+SELECT 
+    sql_id,
+    EXTRACT(HOUR FROM captured_at)::INT AS hour_of_day,
+    EXTRACT(DOW  FROM captured_at)::INT AS day_of_week,
+    COUNT(*) AS sample_count,
+    AVG(elapsed_time_ms)::DECIMAL(15,2) AS mean_elapsed_ms,
+    COALESCE(STDDEV(elapsed_time_ms), 0)::DECIMAL(15,2) AS stddev_elapsed_ms,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY elapsed_time_ms)::DECIMAL(15,2) AS p50_elapsed_ms,
+    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY elapsed_time_ms)::DECIMAL(15,2) AS p95_elapsed_ms
+FROM sql_metrics
+WHERE database_id = :db_id 
+  AND captured_at >= NOW() - INTERVAL '7 days'
+GROUP BY sql_id, hour_of_day, day_of_week
+```
+
+### 8.2 BaselineEngine Implementation
+
 ```python
-# src/db_copilot/evidence/collectors/sql_collector.py (BaselineEngine)
+# src/db_copilot/evidence/baseline.py
+
+import statistics
+from datetime import datetime
+from db_copilot.domain.models.sql_metric import SqlMetric
+from db_copilot.domain.models.baseline import SqlBaseline
 
 class BaselineEngine:
     """
-    Tính baseline từ 7 ngày lịch sử, theo time bucket (hour, day_of_week).
-    Chạy mỗi giờ.
+    Tính toán baseline hiệu năng SQL từ dữ liệu 7 ngày gần nhất.
+    Chạy định kỳ mỗi 1 giờ.
     """
 
-    async def recalculate(self):
-        sql_ids = await self.repo.get_active_sql_ids(days=7)
+    def __init__(self, repo: EvidenceRepository):
+        self.repo = repo
 
-        for sql_id in sql_ids:
-            for hour in range(24):
-                for dow in range(7):
-                    samples = await self.repo.get_sql_metrics(
-                        sql_id=sql_id,
-                        hour=hour,
-                        day_of_week=dow,
-                        days=7
-                    )
+    def _remove_outliers(self, samples: list[SqlMetric]) -> list[SqlMetric]:
+        """
+        Loại bỏ các điểm đo dị biệt (> 2 độ lệch chuẩn stddev) ([EE-02]).
+        Nếu mẫu < 3 thì giữ nguyên để tránh bias thống kê.
+        """
+        if len(samples) < 3:
+            return samples
+        mean = statistics.mean(s.elapsed_time_ms for s in samples)
+        stddev = statistics.stdev(s.elapsed_time_ms for s in samples)
+        return [s for s in samples if abs(s.elapsed_time_ms - mean) <= 2 * stddev]
 
-                    if len(samples) < 5:
-                        # Không đủ data, đánh dấu unreliable
-                        await self.repo.upsert_baseline(SqlBaseline(
-                            sql_id=sql_id,
-                            hour_of_day=hour,
-                            day_of_week=dow,
-                            sample_count=len(samples),
-                            is_reliable=False
-                        ))
-                        continue
+    async def recalculate(self, database_id: str):
+        """
+        Thực thi tính toán baseline:
+        - Sử dụng aggregation query duy nhất để lấy thống kê ([EE-03])
+        - Batch upsert vào bảng sql_baselines với conflict target rõ ràng
+        """
+        rows = await self.repo.calculate_aggregated_baselines(database_id, days=7)
 
-                    # Loại bỏ outliers (> 2 stddev)
-                    filtered = self._remove_outliers(samples)
+        baselines_to_upsert = []
+        for r in rows:
+            sample_count = r["sample_count"]
+            is_reliable = sample_count >= 5
 
-                    elapsed_values = [s.elapsed_time_ms for s in filtered]
-                    baseline = SqlBaseline(
-                        sql_id=sql_id,
-                        hour_of_day=hour,
-                        day_of_week=dow,
-                        sample_count=len(filtered),
-                        mean_elapsed_ms=statistics.mean(elapsed_values),
-                        stddev_elapsed_ms=statistics.stdev(elapsed_values),
-                        p50_elapsed_ms=statistics.median(elapsed_values),
-                        p95_elapsed_ms=self._p95(elapsed_values),
-                        is_reliable=True
-                    )
-                    await self.repo.upsert_baseline(baseline)
+            baselines_to_upsert.append(SqlBaseline(
+                database_id=database_id,
+                sql_id=r["sql_id"],
+                hour_of_day=r["hour_of_day"],
+                day_of_week=r["day_of_week"],
+                sample_count=sample_count,
+                mean_elapsed_ms=float(r["mean_elapsed_ms"]),
+                stddev_elapsed_ms=float(r["stddev_elapsed_ms"]),
+                p50_elapsed_ms=float(r["p50_elapsed_ms"]),
+                p95_elapsed_ms=float(r["p95_elapsed_ms"]),
+                is_reliable=is_reliable,
+                calculated_at=datetime.utcnow()
+            ))
+
+        await self.repo.batch_upsert_baselines(baselines_to_upsert)
 ```
 
 ---
@@ -369,10 +422,10 @@ The Evidence Engine does **not analyze** and does **not make decisions** — tha
 
 | Collector | Interval | What it collects |
 |---|---|---|
-| `SqlCollector` | Every 5 min | Top 100 SQL by elapsed time, CPU, IO |
-| `SessionCollector` | Every 5 min | Active sessions, blocking chains, long-running |
+| `SqlCollector` | Every 5 min | Multi-dimensional Top SQL (elapsed_time, cpu_time, disk_reads) to detect latency spikes, CPU hogs, and IO hogs ([EE-04]) |
+| `SessionCollector` | Every 5 min | Active sessions, blocking chains, long-running (full `id`, `timestamp` fields [EE-01]) |
 | `StorageCollector` | Every 5 min | Tablespace usage, temp, undo |
-| `BaselineEngine` | Every 1 hour | Recalculate SQL baselines (7-day rolling window) |
+| `BaselineEngine` | Every 1 hour | Recalculate SQL baselines using single PostgreSQL aggregation query ([EE-03]) |
 | `ReportService` | Daily 6:00 AM | Generate daily health report |
 
 ---
@@ -385,12 +438,14 @@ _(See Section 3 — same table)_
 
 ---
 
-## 12. Normalization Rules
+## 12. Normalization & Reliability Rules
 
+- **Full Constructor Fields ([EE-01])**: All `Evidence` instantiations include required `id: UUID`, `incident_id: UUID | None`, and `timestamp: datetime` to avoid runtime TypeErrors.
 - **SQL Regression**: `current_elapsed > baseline_mean × multiplier` (default 3.0)
 - **Severity mapping**: ratio ≥ 10 → CRITICAL, ≥ 5 → HIGH, ≥ 3 → MEDIUM
 - **Minimum baseline samples**: 5 required for reliable baseline
-- **Outlier removal**: Remove samples > 2 standard deviations before baseline calculation
+- **Outlier removal ([EE-02])**: `_remove_outliers()` filters samples > 2 standard deviations when sample size ≥ 3.
+- **Single Aggregation Query ([EE-03])**: Eliminates 16,800 DB queries/hour by executing 1 analytical query using `PERCENTILE_CONT(0.5)` and `PERCENTILE_CONT(0.95)` with `GROUP BY sql_id, hour_of_day, day_of_week`.
 
 ---
 
@@ -399,6 +454,7 @@ _(See Section 3 — same table)_
 PostgreSQL tables: `snapshots`, `sql_metrics`, `sql_baselines`, `incidents`, `evidence_items`
 
 Key design:
-- `sql_baselines` keyed on `(database_id, sql_id, hour_of_day, day_of_week)` — time-bucketed
-- `evidence_items.data` as JSONB — flexible schema per evidence type
-- Evidence is retained for 90 days (configurable)
+- `sql_metrics` enforces `UNIQUE(database_id, sql_id, captured_at)` to support explicit `ON CONFLICT (database_id, sql_id, captured_at) DO NOTHING` ([EE-05]).
+- `sql_baselines` keyed on `(database_id, sql_id, hour_of_day, day_of_week)` — time-bucketed.
+- `evidence_items.data` as JSONB — flexible schema per evidence type.
+- Evidence is retained for 90 days (configurable).

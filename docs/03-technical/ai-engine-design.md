@@ -71,8 +71,8 @@ class LLMProvider(ABC):
         section_type: str
     ) -> str:
         """
-        Tạo một section của daily report (markdown format).
-        section_type: "critical", "warning", "info", "summary"
+        Tạo một section hoặc toàn bộ markdown daily report.
+        section_type: "critical", "warning", "info", "summary", hoặc "full_report"
         """
         pass
 
@@ -196,8 +196,12 @@ ADDITIONAL CONTEXT:
 ```python
 # src/db_copilot/ai/providers/openai_provider.py
 
+import json
 from openai import AsyncOpenAI
 from db_copilot.domain.interfaces.llm_provider import LLMProvider
+from db_copilot.domain.models.diagnosis import EvidencePackage, DiagnosisResult
+from db_copilot.domain.models.incident import Incident
+from db_copilot.ai.prompts.diagnosis_prompt import DIAGNOSIS_SYSTEM_PROMPT, DIAGNOSIS_USER_TEMPLATE
 
 class OpenAIProvider(LLMProvider):
 
@@ -214,7 +218,7 @@ class OpenAIProvider(LLMProvider):
                 [h.__dict__ for h in package.hypotheses], indent=2
             ),
             evidence_json=json.dumps(
-                [self._serialize_evidence(e) for e in package.evidence], indent=2
+                [self._serialize_evidence(e) for e in self._filter_evidence(package.evidence)], indent=2
             ),
             context_json=json.dumps({
                 "sql_details": package.sql_details,
@@ -222,18 +226,65 @@ class OpenAIProvider(LLMProvider):
             }, indent=2)
         )
 
+        # Retry logic nếu JSON parse error
+        messages = [
+            {"role": "system", "content": DIAGNOSIS_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        for attempt in range(2):
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                temperature=0.1,          # Low temperature for consistent structured output
+                max_tokens=4096,          # [AI-06] Tránh truncate JSON kết quả phức tạp
+                response_format={"type": "json_object"},
+                messages=messages
+            )
+            raw_json = response.choices[0].message.content
+            try:
+                data = json.loads(raw_json)
+                return DiagnosisResult(**data)
+            except Exception as err:
+                if attempt == 0:
+                    messages.append({"role": "assistant", "content": raw_json})
+                    messages.append({"role": "user", "content": f"Invalid JSON format: {err}. Please return STRICT valid JSON matching DiagnosisResult schema."})
+                else:
+                    raise err
+
+    async def generate_report_section(
+        self,
+        incidents: list[Incident],
+        section_type: str = "full_report"
+    ) -> str:
+        prompt = f"Generate a {section_type} section for these incidents: {json.dumps([i.__dict__ for i in incidents], default=str)}"
         response = await self.client.chat.completions.create(
             model=self.model,
-            temperature=0.1,          # Low temperature for consistent structured output
-            response_format={"type": "json_object"},
+            temperature=0.2,
             messages=[
-                {"role": "system", "content": DIAGNOSIS_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt}
+                {"role": "system", "content": "You are a senior Oracle DBA generating a clean markdown daily health report."},
+                {"role": "user", "content": prompt}
             ]
         )
+        return response.choices[0].message.content
 
-        raw_json = response.choices[0].message.content
-        return DiagnosisResult(**json.loads(raw_json))
+    async def parse_intent(self, question: str, current_time: datetime) -> dict:
+        # [AI-05] Implement parse_intent
+        prompt = f"Parse the user question into an investigation intent: '{question}'. Current time is {current_time.isoformat()}."
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            temperature=0.0,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": "Parse database troubleshooting questions into JSON with keys: intent_type, entity_type, entity_id, time_range (start_time, end_time), focus_metric."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return json.loads(response.choices[0].message.content)
+
+    def _filter_evidence(self, evidence_list: list[Evidence]) -> list[Evidence]:
+        # [AI-08] Filter chỉ HIGH + MEDIUM severity để tối ưu context & privacy
+        filtered = [e for e in evidence_list if e.severity in (Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM)]
+        return filtered if filtered else evidence_list[:15]
 
     def _serialize_evidence(self, e: Evidence) -> dict:
         """Serialize evidence, removing any sensitive fields."""
@@ -251,28 +302,115 @@ class OpenAIProvider(LLMProvider):
 # src/db_copilot/ai/providers/claude_provider.py
 
 import anthropic
+import json
+from db_copilot.domain.interfaces.llm_provider import LLMProvider
+from db_copilot.domain.models.diagnosis import EvidencePackage, DiagnosisResult
+from db_copilot.domain.models.incident import Incident
+from db_copilot.ai.prompts.diagnosis_prompt import DIAGNOSIS_SYSTEM_PROMPT
 
 class ClaudeProvider(LLMProvider):
 
-    def __init__(self, model: str = "claude-3-5-sonnet-20241022"):
+    def __init__(self, model: str = "claude-sonnet-4-6"):  # [AI-03] Update model ID mới nhất
         self.client = anthropic.AsyncAnthropic()
         self.model = model
 
     async def diagnose(self, package: EvidencePackage) -> DiagnosisResult:
+        # [AI-01] Dùng Claude tool_use để force structured output (không sợ thiếu _extract_json)
+        # [AI-04] Sử dụng prompt caching với cache_control ephemeral
+        system_content = [
+            {
+                "type": "text",
+                "text": DIAGNOSIS_SYSTEM_PROMPT,
+                "cache_control": {"type": "ephemeral"}  # Cache 5 phút
+            }
+        ]
+
+        diagnosis_tool = {
+            "name": "submit_diagnosis",
+            "description": "Submit structured Oracle DB diagnosis result",
+            "input_schema": DiagnosisResult.model_json_schema()
+        }
+
+        user_content = self._build_user_prompt(package)
+
         response = await self.client.messages.create(
             model=self.model,
-            max_tokens=2048,
-            system=DIAGNOSIS_SYSTEM_PROMPT,
+            max_tokens=4096,  # [AI-06] Tăng max_tokens lên 4096
+            temperature=0.1,  # [AI-07] Bổ sung temperature 0.1 cho đồng nhất output
+            system=system_content,
+            tools=[diagnosis_tool],
+            tool_choice={"type": "tool", "name": "submit_diagnosis"},
             messages=[
-                {"role": "user", "content": self._build_user_prompt(package)}
+                {"role": "user", "content": user_content}
             ]
         )
 
-        # Claude không có native JSON mode → parse manually
-        raw_text = response.content[0].text
-        # Strip markdown code blocks nếu có
-        raw_json = self._extract_json(raw_text)
-        return DiagnosisResult(**json.loads(raw_json))
+        for content_block in response.content:
+            if content_block.type == "tool_use" and content_block.name == "submit_diagnosis":
+                return DiagnosisResult(**content_block.input)
+
+        raise ValueError("Claude did not call submit_diagnosis tool")
+
+    async def generate_report_section(
+        self,
+        incidents: list[Incident],
+        section_type: str = "full_report"
+    ) -> str:
+        prompt = f"Generate {section_type} section for daily report from incidents: {json.dumps([i.__dict__ for i in incidents], default=str)}"
+        response = await self.client.messages.create(
+            model=self.model,
+            max_tokens=2048,
+            temperature=0.2,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.content[0].text
+
+    async def parse_intent(self, question: str, current_time: datetime) -> dict:
+        # [AI-05] Implement parse_intent qua tool_use
+        intent_tool = {
+            "name": "submit_intent",
+            "description": "Submit parsed question intent",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "intent_type": {"type": "string"},
+                    "entity_type": {"type": "string"},
+                    "entity_id": {"type": "string"},
+                    "start_time": {"type": "string"},
+                    "end_time": {"type": "string"},
+                    "focus_metric": {"type": "string"}
+                },
+                "required": ["intent_type"]
+            }
+        }
+        response = await self.client.messages.create(
+            model=self.model,
+            max_tokens=1024,
+            temperature=0.0,
+            tools=[intent_tool],
+            tool_choice={"type": "tool", "name": "submit_intent"},
+            messages=[{"role": "user", "content": f"Parse question: '{question}'. Current time: {current_time.isoformat()}."}]
+        )
+        for block in response.content:
+            if block.type == "tool_use" and block.name == "submit_intent":
+                return block.input
+        return {"intent_type": "UNKNOWN"}
+
+    def _build_user_prompt(self, package: EvidencePackage) -> str:
+        # [AI-08] Filter evidence
+        filtered_evidence = [e for e in package.evidence if e.severity in (Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM)]
+        if not filtered_evidence:
+            filtered_evidence = package.evidence[:15]
+
+        return f"""
+QUESTION: {package.question}
+DATABASE: {package.database_name}
+TIMESTAMP: {package.investigation_timestamp.isoformat()}
+
+HYPOTHESES: {json.dumps([h.__dict__ for h in package.hypotheses], default=str)}
+EVIDENCE: {json.dumps([e.data for e in filtered_evidence], default=str)}
+CONTEXT: sql_details={package.sql_details}, source_fragment={package.source_fragment}
+"""
 ```
 
 ### 7.3 Gemini Provider
@@ -280,21 +418,67 @@ class ClaudeProvider(LLMProvider):
 ```python
 # src/db_copilot/ai/providers/gemini_provider.py
 
-import google.generativeai as genai
+import json
+from google import genai
+from google.genai import types
+from db_copilot.domain.interfaces.llm_provider import LLMProvider
+from db_copilot.domain.models.diagnosis import EvidencePackage, DiagnosisResult
+from db_copilot.domain.models.incident import Incident
+from db_copilot.ai.prompts.diagnosis_prompt import DIAGNOSIS_SYSTEM_PROMPT
 
 class GeminiProvider(LLMProvider):
 
-    def __init__(self, model: str = "gemini-1.5-pro"):
-        genai.configure(api_key=settings.gemini_api_key)
-        self.model = genai.GenerativeModel(
-            model_name=model,
-            generation_config={"response_mime_type": "application/json"}
-        )
+    def __init__(self, model: str = "gemini-2.0-flash"):
+        self.client = genai.Client(api_key=settings.gemini_api_key)
+        self.model = model
 
     async def diagnose(self, package: EvidencePackage) -> DiagnosisResult:
-        prompt = f"{DIAGNOSIS_SYSTEM_PROMPT}\n\n{self._build_user_prompt(package)}"
-        response = await self.model.generate_content_async(prompt)
+        user_prompt = self._build_user_prompt(package)
+        response = await self.client.aio.models.generate_content(
+            model=self.model,
+            contents=user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=DIAGNOSIS_SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                response_schema=DiagnosisResult,
+                temperature=0.1,
+                max_output_tokens=4096
+            )
+        )
         return DiagnosisResult(**json.loads(response.text))
+
+    async def generate_report_section(
+        self,
+        incidents: list[Incident],
+        section_type: str = "full_report"
+    ) -> str:
+        prompt = f"Generate {section_type} section for daily report from: {json.dumps([i.__dict__ for i in incidents], default=str)}"
+        response = await self.client.aio.models.generate_content(
+            model=self.model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction="You are a senior Oracle DBA writing daily report in markdown.",
+                temperature=0.2
+            )
+        )
+        return response.text
+
+    async def parse_intent(self, question: str, current_time: datetime) -> dict:
+        prompt = f"Parse question: '{question}'. Current time: {current_time.isoformat()}."
+        response = await self.client.aio.models.generate_content(
+            model=self.model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction="Parse user question into JSON with keys: intent_type, entity_type, entity_id, start_time, end_time, focus_metric.",
+                response_mime_type="application/json",
+                temperature=0.0
+            )
+        )
+        return json.loads(response.text)
+
+    def _build_user_prompt(self, package: EvidencePackage) -> str:
+        filtered = [e for e in package.evidence if e.severity in (Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM)] or package.evidence[:15]
+        return f"QUESTION: {package.question}\nDATABASE: {package.database_name}\nEVIDENCE: {json.dumps([e.data for e in filtered], default=str)}"
 ```
 
 ---
@@ -303,14 +487,29 @@ class GeminiProvider(LLMProvider):
 
 ```python
 # src/db_copilot/ai/service.py
+# [AI-02] Merge toàn bộ chức năng vào 1 class AIService duy nhất (diagnose + generate_daily_report)
+
+import asyncio
+import logging
+from datetime import date
+from db_copilot.domain.interfaces.llm_provider import LLMProvider
+from db_copilot.domain.models.diagnosis import EvidencePackage, DiagnosisResult, Recommendation
+from db_copilot.domain.models.incident import Incident, Severity
+from db_copilot.config.settings import Settings
+from db_copilot.ai.providers.openai_provider import OpenAIProvider
+from db_copilot.ai.providers.claude_provider import ClaudeProvider
+from db_copilot.ai.providers.gemini_provider import GeminiProvider
+
+logger = logging.getLogger(__name__)
 
 class AIService:
     """
     Orchestrates LLM calls.
-    Handles: provider selection, retry, fallback, error handling.
+    Handles: provider selection, retry, fallback, error handling, daily reports.
     """
 
     def __init__(self, settings: Settings):
+        self.settings = settings
         self.primary = self._create_provider(settings.llm_provider)
         self.fallback = self._create_provider(settings.llm_fallback_provider)
 
@@ -320,12 +519,39 @@ class AIService:
                 self.primary.diagnose(package),
                 timeout=30.0  # 30s timeout cho LLM call
             )
-        except asyncio.TimeoutError:
-            logger.warning("Primary LLM timed out, trying fallback")
-            return await self.fallback.diagnose(package)
-        except LLMDiagnosisError as e:
-            logger.error(f"LLM diagnosis failed: {e}")
-            return self._fallback_diagnosis(package)
+        except (asyncio.TimeoutError, Exception) as e:
+            logger.warning(f"Primary LLM failed ({e}), trying fallback provider")
+            try:
+                return await asyncio.wait_for(
+                    self.fallback.diagnose(package),
+                    timeout=30.0
+                )
+            except Exception as fallback_err:
+                logger.error(f"Fallback LLM failed ({fallback_err}), using rule-based fallback")
+                return self._fallback_diagnosis(package)
+
+    async def generate_daily_report(
+        self,
+        incidents: list[Incident],
+        health_score: int,
+        database_name: str,
+        report_date: date
+    ) -> str:
+        """
+        Generate markdown daily report from incidents.
+        """
+        try:
+            # [AI-10] Sử dụng section_type='full_report' đồng nhất
+            return await self.primary.generate_report_section(
+                incidents=incidents,
+                section_type="full_report"
+            )
+        except Exception as e:
+            logger.warning(f"Primary failed to generate report ({e}), trying fallback")
+            return await self.fallback.generate_report_section(
+                incidents=incidents,
+                section_type="full_report"
+            )
 
     def _fallback_diagnosis(self, package: EvidencePackage) -> DiagnosisResult:
         """
@@ -344,7 +570,7 @@ class AIService:
                     action="Review the evidence manually",
                     sql=None,
                     priority="HIGH",
-                    note="AI diagnosis unavailable. DBA must review manually."
+                    note="DBA must review and execute manually."
                 )
             ],
             confidence_explanation="Diagnosis based on rule engine only (AI unavailable)",
@@ -354,18 +580,18 @@ class AIService:
     def _create_provider(self, provider_name: str) -> LLMProvider:
         match provider_name:
             case "openai":
-                return OpenAIProvider(model=settings.openai_model)
+                return OpenAIProvider(model=self.settings.openai_model)
             case "claude":
-                return ClaudeProvider(model=settings.claude_model)
+                return ClaudeProvider(model=self.settings.claude_model)
             case "gemini":
-                return GeminiProvider(model=settings.gemini_model)
+                return GeminiProvider(model=self.settings.gemini_model)
             case _:
                 raise ValueError(f"Unknown LLM provider: {provider_name}")
 ```
 
 ---
 
-## 9. Report Generation
+## 9. Report Generation Prompts
 
 ```python
 # src/db_copilot/ai/prompts/report_prompt.py
@@ -383,33 +609,6 @@ RULES:
 
 FORMAT: Clean markdown. Use headings, bullet points, and code blocks for SQL.
 """
-
-class AIService:
-    async def generate_daily_report(
-        self,
-        incidents: list[Incident],
-        health_score: int,
-        database_name: str,
-        report_date: date
-    ) -> str:
-        """
-        Generate markdown daily report from incidents.
-        """
-        # Build context (no credentials, no sensitive data)
-        report_context = {
-            "database": database_name,
-            "date": report_date.isoformat(),
-            "health_score": health_score,
-            "critical_count": sum(1 for i in incidents if i.severity == Severity.CRITICAL),
-            "warning_count": sum(1 for i in incidents if i.severity == Severity.MEDIUM),
-            "incidents": [self._serialize_incident(i) for i in incidents]
-        }
-
-        response = await self.primary.generate_report_section(
-            incidents=incidents,
-            section_type="full_report"
-        )
-        return response
 ```
 
 ---
@@ -433,8 +632,8 @@ AIService (orchestrator)
     │
     ├── Primary Provider  (configured via LLM_PROVIDER env)
     │   ├── OpenAIProvider (GPT-4o)
-    │   ├── ClaudeProvider (Claude 3.5 Sonnet)
-    │   └── GeminiProvider (Gemini 1.5 Pro)
+    │   ├── ClaudeProvider (Claude Sonnet 4.6)
+    │   └── GeminiProvider (Gemini 2.0 Flash)
     │
     └── Fallback Provider (LLM_FALLBACK_PROVIDER env)
         └── Falls back to rule-engine diagnosis if both fail
@@ -449,8 +648,8 @@ AIService (orchestrator)
 LLM_PROVIDER=openai
 LLM_FALLBACK_PROVIDER=claude
 OPENAI_MODEL=gpt-4o
-CLAUDE_MODEL=claude-3-5-sonnet-20241022
-GEMINI_MODEL=gemini-1.5-pro
+CLAUDE_MODEL=claude-sonnet-4-6
+GEMINI_MODEL=gemini-2.0-flash
 ```
 
 ---

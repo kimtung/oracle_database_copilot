@@ -243,14 +243,22 @@ class OracleConnectionPool:
 
 import time
 import json
+import logging
+from logging.handlers import RotatingFileHandler
 from contextlib import asynccontextmanager
 from oracle_mcp.security.sanitizer import sanitize_args
+
+# [MCP-03] Audit logging hỗ trợ cả Stderr và Rotating File Log cho Enterprise SOC2 Compliance
+audit_logger = logging.getLogger("oracle_mcp.audit")
+audit_logger.setLevel(logging.INFO)
+file_handler = RotatingFileHandler("logs/mcp_audit.log", maxBytes=10*1024*1024, backupCount=5)
+audit_logger.addHandler(file_handler)
 
 @asynccontextmanager
 async def AuditContext(tool: str, args: dict):
     """
     Context manager: log mọi MCP tool call.
-    Ghi log TRƯỚC khi trả kết quả.
+    Ghi log TRƯỚC khi trả kết quả (vào cả rotating file và stderr).
     """
     start = time.time()
     sanitized = sanitize_args(args)
@@ -273,8 +281,11 @@ def _write_audit_log(tool, args, duration_ms, status, error=None):
         "status": status,
         "error": error
     }
-    # Ghi ra stderr (stdout là MCP protocol) hoặc file
-    print(json.dumps(record), file=sys.stderr)
+    line = json.dumps(record, ensure_ascii=False)
+    # 1. Ghi ra stderr (stdout dành riêng cho MCP JSON-RPC protocol)
+    print(line, file=sys.stderr, flush=True)
+    # 2. Ghi ra rotating file bảo vệ log không bị mất khi chạy Stdio mode mà parent không capture
+    audit_logger.info(line)
 ```
 
 ---
@@ -308,6 +319,10 @@ GRANT SELECT ON SYS.V_$PARAMETER TO db_copilot_readonly;
 GRANT SELECT ON SYS.V_$SYSSTAT TO db_copilot_readonly;
 GRANT SELECT ON SYS.V_$SYSEVENT TO db_copilot_readonly;
 GRANT SELECT ON SYS.V_$LOG TO db_copilot_readonly;
+GRANT SELECT ON SYS.V_$ARCHIVED_LOG TO db_copilot_readonly;  -- [MCP-02] get_redo_statistics
+
+-- Diagnostics / Alert Log
+GRANT SELECT ON SYS.V_$DIAG_ALERT_EXT TO db_copilot_readonly; -- [MCP-01] get_alert_events
 
 -- Storage
 GRANT SELECT ON SYS.DBA_DATA_FILES TO db_copilot_readonly;
@@ -401,6 +416,11 @@ GRANT SELECT ON SYS.DBA_INDEXES TO db_copilot_readonly;
 }
 ```
 
+> **[MCP-04] Lưu ý kỹ thuật về trích xuất `sql_statements`:**
+> PL/SQL full AST parsing là bài toán phức tạp. Trong phạm vi MVP, hệ thống sử dụng **heuristic regex-based parser** nhận diện các câu lệnh DML tĩnh (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `MERGE`).
+> - **Đặc điểm:** Approximate (xấp xỉ), tập trung định vị nhanh dòng code nghi vấn.
+> - **Giới hạn:** Không hỗ trợ Dynamic SQL phức tạp (`EXECUTE IMMEDIATE`, `DBMS_SQL`).
+
 ---
 
 ---
@@ -447,14 +467,14 @@ It implements the **Model Context Protocol (MCP)** to expose Oracle read-only to
 - Oracle credentials only in `oracle-mcp-server` — read from environment variables
 - Never logged (sanitizer removes credentials from audit args)
 - Never passed to `db-copilot` or LLM
-- SELECT-only grants on ~35 pre-approved views/tables
+- SELECT-only grants on ~35 pre-approved views/tables (including `V$DIAG_ALERT_EXT` and `V$ARCHIVED_LOG`)
 - No DML, DDL, EXECUTE, or DBA role granted
 
 ---
 
 ## 12. Audit
 
-Every MCP tool call is audit-logged to stderr (stdout is reserved for MCP protocol):
+Every MCP tool call is audit-logged to both stderr (for console monitoring) and a dedicated rotating log file (`logs/mcp_audit.log`):
 
 ```json
 {
@@ -466,4 +486,5 @@ Every MCP tool call is audit-logged to stderr (stdout is reserved for MCP protoc
 }
 ```
 
-Audit log entries are **always written**, even on errors. The `AuditContext` context manager guarantees this.
+Audit log entries are **always written**, even on errors, ensuring enterprise SOC2 compliance. The `AuditContext` context manager guarantees this.
+

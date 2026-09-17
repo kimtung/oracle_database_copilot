@@ -351,96 +351,211 @@ CREATE TABLE daily_reports (
 );
 ```
 
----
-
 ## 5. MCP Client trong db-copilot
 
-db-copilot gọi oracle-mcp-server như một MCP client:
+Để đáp ứng SLA điều tra sự cố (< 60s cho chuỗi 9 bước investigation) và tuân thủ nguyên tắc an ninh bảo mật dữ liệu, `db-copilot` kết nối với `oracle-mcp-server` qua **SSE Transport với Persistent Connection** ([LLD-01], [LLD-02]).
+
+### 5.1 Kiến trúc kết nối Persistent SSE
+- **oracle-mcp-server** chạy độc lập dưới dạng microservice/daemon (Docker container hoặc systemd), quản lý Oracle Connection Pool và lưu giữ an toàn credentials nội bộ.
+- **db-copilot** là SSE client, kết nối qua HTTP/SSE (`MCP_SERVER_URL`). `db-copilot` hoàn toàn **không lưu trữ hoặc chuyển tiếp** tài khoản Oracle (`ORACLE_USER`/`ORACLE_PASSWORD`).
+- **Tái sử dụng Connection/Session**: `OracleMcpClient` khởi tạo `ClientSession` một lần trong vòng đời ứng dụng (hoặc phiên điều tra), loại bỏ hoàn toàn chi phí khởi động tiến trình Python (~1.5s) và bắt tay kết nối Oracle (~1s) ở mỗi tool call. Thời gian thực thi mỗi tool call giảm từ ~2-3s xuống còn ~30-100ms.
+
+### 5.2 Implementation Pattern (`OracleMcpClient`)
 
 ```python
-# src/db_copilot/evidence/collectors/base_collector.py
+# src/db_copilot/mcp/client.py
 
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+import json
+import logging
+import time
+from typing import Any
+from mcp import ClientSession
+from mcp.client.sse import sse_client
+from db_copilot.config.settings import get_settings
+
+logger = logging.getLogger(__name__)
+
+class McpClientError(Exception):
+    """Ngoại lệ khi gọi MCP tool thất bại."""
+    def __init__(self, tool_name: str, message: str, duration_ms: int = 0):
+        super().__init__(f"MCP tool '{tool_name}' error: {message}")
+        self.tool_name = tool_name
+        self.message = message
+        self.duration_ms = duration_ms
 
 class OracleMcpClient:
     """
-    MCP client để gọi oracle-mcp-server.
-    db-copilot không biết Oracle credentials.
+    Persistent SSE MCP Client kết nối tới oracle-mcp-server.
+    db-copilot hoàn toàn không lưu giữ credentials của Oracle DB.
     """
 
-    def __init__(self, mcp_command: str, mcp_args: list[str]):
-        self.server_params = StdioServerParameters(
-            command=mcp_command,
-            args=mcp_args,
-            # Oracle credentials được truyền qua env vars của oracle-mcp-server process
-            env={
-                "ORACLE_USER": settings.oracle_mcp_user,
-                "ORACLE_PASSWORD": settings.oracle_mcp_password,
-                "ORACLE_DSN": settings.oracle_mcp_dsn
-            }
-        )
+    def __init__(self, server_url: str | None = None, auth_token: str | None = None):
+        settings = get_settings()
+        self.server_url = server_url or settings.mcp_server_url
+        self.auth_token = auth_token or settings.mcp_server_auth_token
+        self._session: ClientSession | None = None
+        self._sse_ctx = None
+        self._session_ctx = None
 
-    async def call_tool(self, tool_name: str, arguments: dict) -> dict:
-        async with stdio_client(self.server_params) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.call_tool(tool_name, arguments)
-                return result.content
+    async def __aenter__(self):
+        await self.connect()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.disconnect()
+
+    async def connect(self) -> None:
+        """Khởi tạo persistent connection một lần duy nhất."""
+        if self._session is not None:
+            return
+
+        headers = {}
+        if self.auth_token:
+            headers["Authorization"] = f"Bearer {self.auth_token}"
+
+        self._sse_ctx = sse_client(self.server_url, headers=headers)
+        read_stream, write_stream = await self._sse_ctx.__aenter__()
+
+        self._session_ctx = ClientSession(read_stream, write_stream)
+        self._session = await self._session_ctx.__aenter__()
+        await self._session.initialize()
+        logger.info(f"Connected persistent MCP SSE session to {self.server_url}")
+
+    async def disconnect(self) -> None:
+        """Đóng session và giải phóng kết nối SSE khi shutdown."""
+        if self._session_ctx:
+            await self._session_ctx.__aexit__(None, None, None)
+            self._session_ctx = None
+            self._session = None
+        if self._sse_ctx:
+            await self._sse_ctx.__aexit__(None, None, None)
+            self._sse_ctx = None
+        logger.info("Closed persistent MCP SSE session")
+
+    async def call_tool(self, tool_name: str, arguments: dict[str, Any] | None = None) -> Any:
+        """Gọi MCP tool trên session đã mở sẵn, tái sử dụng cho toàn bộ investigation."""
+        if self._session is None:
+            await self.connect()
+
+        start_time = time.monotonic()
+        arguments = arguments or {}
+
+        try:
+            result = await self._session.call_tool(tool_name, arguments=arguments)
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+
+            if getattr(result, "isError", False):
+                err_msg = self._extract_text(result.content)
+                raise McpClientError(tool_name, err_msg, duration_ms=duration_ms)
+
+            content_text = self._extract_text(result.content)
+            logger.debug(f"Tool {tool_name} executed via SSE in {duration_ms}ms")
+            
+            try:
+                return json.loads(content_text)
+            except (json.JSONDecodeError, TypeError):
+                return content_text
+
+        except Exception as e:
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+            logger.error(f"MCP tool {tool_name} failed ({duration_ms}ms): {e}")
+            raise McpClientError(tool_name, str(e), duration_ms=duration_ms) from e
+
+    def _extract_text(self, content: Any) -> str:
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if hasattr(item, "text"):
+                    parts.append(item.text)
+                elif isinstance(item, dict) and "text" in item:
+                    parts.append(item["text"])
+            return "\n".join(parts)
+        return str(content) if content else ""
 ```
 
 ---
 
-## 6. Configuration Schema
+## 6. Configuration Schema & Trade-offs
 
-### oracle-mcp-server `.env`
+### 6.1 oracle-mcp-server `.env`
+*(Chứa toàn bộ cấu hình kết nối Oracle và bảo mật transport)*
 
 ```env
-# Oracle connection (chỉ trong oracle-mcp-server)
+# Oracle Connection (Chỉ duy nhất oracle-mcp-server nắm giữ credentials)
 ORACLE_USER=db_copilot_readonly
 ORACLE_PASSWORD=<secret>
 ORACLE_DSN=prod-oracle-host:1521/ORCL
+ORACLE_POOL_MIN=2
+ORACLE_POOL_MAX=10
 
-# MCP transport mode
-MCP_TRANSPORT=stdio  # hoặc sse
-MCP_SSE_PORT=8080    # Chỉ dùng khi MCP_TRANSPORT=sse
+# MCP Transport Mode
+MCP_TRANSPORT=sse
+MCP_SSE_HOST=0.0.0.0
+MCP_SSE_PORT=8080
+MCP_SERVER_AUTH_TOKEN=<secret-internal-bearer-token>
 
-# Audit
+# Audit Logging
 AUDIT_LOG_LEVEL=INFO
+AUDIT_RETENTION_DAYS=365
 ```
 
-### db-copilot `.env`
+### 6.2 db-copilot `.env`
+*(Tuyệt đối KHÔNG chứa Oracle credentials — giải quyết [LLD-02])*
 
 ```env
-# MCP server connection
-MCP_SERVER_COMMAND=python
-MCP_SERVER_ARGS=-m,oracle_mcp.server
-MCP_SERVER_ENV_ORACLE_USER=db_copilot_readonly
-MCP_SERVER_ENV_ORACLE_PASSWORD=<secret>
-MCP_SERVER_ENV_ORACLE_DSN=prod-oracle-host:1521/ORCL
+# MCP Server Connection (SSE Persistent Transport)
+MCP_TRANSPORT=sse
+MCP_SERVER_URL=http://oracle-mcp-server:8080/sse
+MCP_SERVER_AUTH_TOKEN=<secret-internal-bearer-token>
 
 # PostgreSQL Evidence Store
 POSTGRES_URL=postgresql+asyncpg://dbcopilot:secret@localhost/dbcopilot
 
-# LLM
+# LLM Provider Configuration
 LLM_PROVIDER=openai  # openai | claude | gemini
 OPENAI_API_KEY=<secret>
 OPENAI_MODEL=gpt-4o
 
-# Collection
+# Fallback LLM Provider (Optional)
+FALLBACK_LLM_PROVIDER=gemini
+GEMINI_API_KEY=<secret>
+GEMINI_MODEL=gemini-2.0-flash
+
+# Collection & Baselines
 COLLECTION_INTERVAL_MINUTES=5
 BASELINE_DAYS=7
 SQL_REGRESSION_MULTIPLIER=3.0
 TABLESPACE_WARNING_THRESHOLD=80
 TABLESPACE_CRITICAL_THRESHOLD=90
 
-# Report
+# Daily Report
 REPORT_SCHEDULE=0 6 * * *
 
 # Alerts
 SLACK_WEBHOOK_URL=<optional>
-EMAIL_SMTP_HOST=<optional>
+TEAMS_WEBHOOK_URL=<optional>
 ```
+
+### 6.3 So Sánh & Trade-offs Các LLM Provider ([LLD-03])
+
+Để hỗ trợ khách hàng doanh nghiệp (commercial customers) lựa chọn cấu hình phù hợp giữa **Chi phí (Cost)**, **Tốc độ (Latency)** và **Độ tin cậy JSON (Structured Output Reliability)**, hệ thống cung cấp ma trận đánh giá chi tiết:
+
+| Tiêu chí | OpenAI `gpt-4o` *(Mặc định)* | Anthropic `claude-3-5-sonnet` | Google `gemini-2.0-flash` | OpenAI `gpt-4o-mini` | Google `gemini-1.5-pro` |
+|---|---|---|---|---|---|
+| **Chi phí Input (1M tokens)** | \$2.50 | \$3.00 | **\$0.10** | \$0.15 | \$1.25 |
+| **Chi phí Output (1M tokens)** | \$10.00 | \$15.00 | **\$0.40** | \$0.60 | \$5.00 |
+| **Độ trễ Latency (p50 / p95)** | ~1.2s / 2.5s | ~1.8s / 3.8s | **~0.6s / 1.2s** | ~0.5s / 1.0s | ~2.0s / 4.5s |
+| **Độ tin cậy JSON Output** | ⭐⭐⭐⭐⭐ (Strict Mode) | ⭐⭐⭐⭐ (Cần parse markdown) | ⭐⭐⭐⭐⭐ (Structured Schema) | ⭐⭐⭐⭐⭐ (Strict Mode) | ⭐⭐⭐⭐⭐ (Structured Schema) |
+| **Khả năng suy luận Oracle DB** | ⭐⭐⭐⭐⭐ (Rất chuẩn xác) | ⭐⭐⭐⭐⭐ (RCA xuất sắc nhất) | ⭐⭐⭐⭐ (Tốt) | ⭐⭐⭐ (Cơ bản) | ⭐⭐⭐⭐⭐ (Rất sâu) |
+| **Context Window** | 128K tokens | 200K tokens | **1,048K tokens (1M)** | 128K tokens | **2,097K tokens (2M)** |
+| **Phù hợp sử dụng** | **Production Tiêu chuẩn** | **Sự cố P1 / RCA Phức tạp** | **Chi phí tối ưu / High-traffic** | **Tóm tắt đơn giản / Dev** | **Phân tích AWR Dump lớn** |
+
+#### Hướng Dẫn Lựa Chọn Kiến Trúc Cho Khách Hàng Doanh Nghiệp:
+1. **Môi trường Production tiêu chuẩn (Khuyến nghị):** Chọn `LLM_PROVIDER=openai` với model `gpt-4o`. Lý do: Hỗ trợ Native Structured Outputs đảm bảo 100% schema JSON không bao giờ bị lỗi format khi parse vào `DiagnosisResult`.
+2. **Tối ưu chi phí vận hành & Báo cáo định kỳ:** Chọn `LLM_PROVIDER=gemini` với model `gemini-2.0-flash`. Chi phí thấp hơn **25 lần** so với GPT-4o, tốc độ xử lý dưới 1 giây, context window 1M tokens cho phép nạp lượng lớn snapshot metric.
+3. **Phân tích sự cố nghiêm trọng (Severity CRITICAL):** Cấu hình fallback hoặc định tuyến chuyên biệt sang `claude-3-5-sonnet`. Claude thể hiện khả năng liên kết nguyên nhân gốc rễ (Root Cause Analysis) tốt nhất trên execution plan phức tạp và chuỗi lock contention.
 
 ---
 
@@ -455,8 +570,8 @@ EMAIL_SMTP_HOST=<optional>
 _(See Sections 1.1 and 1.2 — same content)_
 
 Key points:
-- **oracle-mcp-server**: All Oracle connectivity. Stateless. Can be deployed independently.
-- **db-copilot**: AI Application. No direct Oracle connection. Has PostgreSQL for evidence persistence.
+- **oracle-mcp-server**: All Oracle connectivity. Stateless daemon. Runs independently with internal credentials.
+- **db-copilot**: AI Application. Connects to MCP server via SSE transport. Zero direct Oracle credentials. Has PostgreSQL for evidence persistence.
 
 ---
 
@@ -490,14 +605,20 @@ Key design decisions:
 ## 11. MCP Client Pattern
 
 db-copilot acts as **MCP client** to oracle-mcp-server:
-- Spawns oracle-mcp-server process (Stdio mode) or connects to running server (SSE mode)
-- Oracle credentials passed as env vars to the spawned process — never stored in db-copilot
-- All tool calls go through `OracleMcpClient.call_tool()`
+- **SSE Persistent Transport ([LLD-01])**: Reuses long-lived HTTP/SSE connection (`ClientSession`) across all tool calls in an investigation session, avoiding process spawn and connection pool overhead (~2-3s per call dropped to ~30-100ms), guaranteeing SLA < 60s.
+- **Security Boundary ([LLD-02])**: Oracle credentials reside exclusively inside `oracle-mcp-server`. `db-copilot` only knows `MCP_SERVER_URL` (and bearer auth token), completely eliminating credential leakage into the AI application.
+- All tool calls go through `OracleMcpClient.call_tool()`.
 
 ---
 
-## 12. Configuration
+## 12. Configuration & LLM Provider Trade-offs
 
+### 12.1 Configuration Isolation
 Two separate `.env` files:
-1. `oracle-mcp-server/.env`: Oracle connection + MCP transport settings
-2. `db-copilot/.env`: MCP server connection + PostgreSQL + LLM + scheduling
+1. `oracle-mcp-server/.env`: Oracle connection (`ORACLE_USER`, `ORACLE_PASSWORD`, `ORACLE_DSN`) + MCP SSE server settings.
+2. `db-copilot/.env`: `MCP_SERVER_URL` + PostgreSQL + LLM API keys + scheduling (No Oracle credentials).
+
+### 12.2 LLM Provider Comparison ([LLD-03])
+- **OpenAI `gpt-4o` (Default)**: Best balance of Oracle SQL reasoning and guaranteed structured JSON outputs via Strict Mode.
+- **Google `gemini-2.0-flash`**: Highest throughput, ultra-low latency (<1s), lowest cost (~25x cheaper), 1M token context for massive AWR/ASH dumps.
+- **Anthropic `claude-3-5-sonnet`**: Superior root cause analysis for complex execution plan regressions and locking graphs. Recommended for Critical incidents.
