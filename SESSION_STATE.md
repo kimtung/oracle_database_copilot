@@ -1,4 +1,4 @@
-﻿# Oracle DB Copilot — Session State
+# Oracle DB Copilot — Session State
 
 **Last Updated:** 2026-09-16 21:00 (UTC+7)
 **Git Commit:** 506b827
@@ -48,16 +48,28 @@
 
 ---
 
-## NEXT ACTION: Phase 3.8 — Frontend Web Dashboard
+### Phase 3.8 / Phase 5 — Frontend Web Dashboard ✅ DONE
+- React 19 + TypeScript + Vite 8 + Tailwind CSS v4 + Lucide Icons in `frontend/`
+- `Navbar`: 19c Thin Mode status, MCP Gateway status, live auto-refresh
+- `HealthScoreGauge`: Dynamic circular SVG gauge (0-100 index, CBO & AWR sub-indices)
+- `MetricsGrid`: Active Sessions, Blocking Sessions, CPU%, Tablespace%, Invalid Objects
+- `IncidentFeed`: Multi-severity filters, instant search, status update, quick "Điều Tra AI" transfer
+- `InvestigationChat`: Multi-step MCP timeline, AI diagnosis with confidence %, copyable SQL remediations
+- `ExecutionPlanViewer`: Interactive CBO hierarchical tree highlighting Full Table Scans and cost
+- `DailyReportViewer`: Executive narrative reader, date selector, print/PDF export
+- `apiService`: Live REST + WebSocket support with interactive standalone fallback
+- Production build: `npm run build` passed in 714ms, `oxlint` 0 warnings 0 errors
+- FastAPI Backend: CORSMiddleware enabled for dev & production proxy
 
-When resuming, implement:
-- `frontend/` directory with React/Next.js + TypeScript + TailwindCSS
-- Health Score Dashboard
-- Investigation Copilot Chat UI (calls POST /api/v1/investigate)
-- Daily Report Viewer
-- WebSocket real-time progress streaming
+---
 
-OR: Deploy & integration testing with real Oracle instance
+## NEXT ACTION: Deployment & Real Oracle 19c Integration Testing
+
+When resuming:
+1. Configure `.env` with actual Oracle 19c database connection strings.
+2. Run end-to-end integration tests with live Oracle performance views (`V$SQL`, `V$SESSION`, `DBA_TABLESPACES`).
+3. Deploy frontend & backend services via Docker Compose.
+
 
 ---
 

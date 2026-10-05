@@ -18,4 +18,5 @@ htmlcov/
 # Build & Dist
 build/
 dist/
+node_modules/
 *.egg-info/

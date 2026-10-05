@@ -309,4 +309,108 @@ Mỗi mục nhật ký ghi nhận theo cấu trúc:
 - **Yêu Cầu Sửa Lại (Revision)**: Không.
 - **Đánh Giá & Hài Lòng**: ✅ Hoàn thành làm mịn 8/8 điểm trong `investigation-engine-design.md`.
 
+---
+
+### #013 — Review Toàn Bộ Tài Liệu Documentation
+- **Thời gian**: 17/09/2026 07:30
+- **Prompt Người Dùng**: "đọc toàn bộ thư mục @docs/01-product, @docs/02-architecture, @doc/03-technical và 04-implementation để review xem tài liệu đang có những gì xung đột, có những gì cần làm rõ, có gì chưa đúng chưa hợp lý và cần cải thiện những gì"
+- **AI Đặt Câu Hỏi / Làm Rõ**: Không cần làm rõ — yêu cầu đủ rõ (review toàn bộ docs).
+- **User Phản Hồi / Quyết Định**: N/A (chưa có phản hồi thêm).
+- **Kết Quả AI Tạo Ra**:
+  - Đọc và phân tích 13 file tài liệu: `brd.md`, `prd.md`, `problem-statement.md`, `hld.md`, `lld.md`, `oracle-mcp-design.md`, `ai-engine-design.md`, `correlation-engine-design.md`, `evidence-engine-design.md`, `investigation-engine-design.md`, `implementation-plan.md`, `test-plan.md`
+  - Tạo báo cáo review `doc_review.md` với:
+    - **7 xung đột** (tool count 35 vs 32, Stdio vs SSE transport, timeline 10-15 vs 9-14 tuần, tablespace threshold 85% vs 80%, daily report 7AM vs 6AM, retention 30 vs 90 ngày, DiagnosisResult schema)
+    - **7 điểm cần làm rõ** (get_ash_sql_activity thiếu module filter, EvidencePackage context field, rule.name undefined, Health Score formula, temp_usage_high rule thiếu, stale statistics threshold, dual audit logs)
+    - **6 vấn đề sai/không hợp lý** (MCP SDK 2.x API sai, circular dependency SqlCollector→CorrelationEngine, SQL_ID example 6 ký tự thay vì 13, thiếu UNIQUE constraint, thiếu investigations table, PROCEDURE_SLOW plan broken)
+    - **13 điểm cần cải thiện** (Health Score spec, DependsOn class, StorageCollector, API auth, rate limiting, v.v.)
+    - Danh sách **P0/P1/P2 action items** ưu tiên
+- **Yêu Cầu Sửa Lại (Revision)**: Chờ phản hồi User.
+- **Đánh Giá & Hài Lòng**: 🔄 Đang chờ User xác nhận và ưu tiên fix.
+
+---
+
+### #014 — Gộp Toàn Bộ Tài Liệu Thành document.md
+- **Thời gian**: 17/09/2026 07:43
+- **Prompt Người Dùng**: "hãy gộp các file vừa rồi thành một file @docs/document.md"
+- **AI Đặt Câu Hỏi / Làm Rõ**: Không — yêu cầu rõ ràng.
+- **User Phản Hồi / Quyết Định**: N/A.
+- **Kết Quả AI Tạo Ra**:
+  - Tạo [`docs/document.md`](file:///d:/2026/oracle_ai/docs/document.md) — 7291 dòng, 274 KB, UTF-8.
+  - Gộp 15 file từ `01-product`, `02-architecture`, `03-technical`, `04-implementation`.
+  - Bao gồm mục lục với 15 mục, separator rõ ràng giữa các file.
+- **Yêu Cầu Sửa Lại (Revision)**: Không.
+- **Đánh Giá & Hài Lòng**: ✅ Hoàn thành.
+
+---
+
+### #015 — Báo Cáo Tiến Độ Hoàn Thiện Sản Phẩm
+- **Thời gian**: 05/10/2026 21:15
+- **Prompt Người Dùng**: "sản phầm hoản thiện tới bước nào rồi"
+- **AI Đặt Câu Hỏi / Làm Rõ**: Không cần làm rõ.
+- **User Phản Hồi / Quyết Định**: N/A.
+- **Kết Quả AI Tạo Ra**:
+  - Tổng hợp trạng thái tiến độ dựa trên [SESSION_STATE.md](file:///d:/2026/oracle_ai/SESSION_STATE.md) và mã nguồn hiện tại.
+  - Trình bày chi tiết 4 giai đoạn cốt lõi Backend & AI đã hoàn thiện (Phase 0, 1, 2, 3 với 93/93 unit tests pass) và vạch rõ bước tiếp theo: Xây dựng Frontend Web Dashboard (Phase 3.8/5) hoặc Triển khai Test tích hợp với Oracle thật.
+- **Yêu Cầu Sửa Lại (Revision)**: Không.
+- **Đánh Giá & Hài Lòng**: ✅ Đã giải đáp đầy đủ bức tranh tiến độ.
+
+---
+
+### #016 — Triển Khai Xây Dựng Frontend Web Dashboard (Phase 3.8)
+- **Thời gian**: 05/10/2026 21:35
+- **Prompt Người Dùng**: "triển khai  Xây dựng Frontend Web Dashboard:"
+- **AI Đặt Câu Hỏi / Làm Rõ**: Dùng công cụ `ask_question` hỏi người dùng lựa chọn kiến trúc công nghệ frontend (React 18/19 + Vite + Tailwind CSS vs Vanilla CSS).
+- **User Phản Hồi / Quyết Định**: Chọn `(Recommended) React 18 + Vite + TypeScript + Tailwind CSS (Theo đúng tài liệu thiết kế Phase 3.8, phong cách Dark Mode Sleek cao cấp, Lucide Icons)`.
+- **Kết Quả AI Tạo Ra**:
+  - Khởi tạo project trong [frontend/](file:///d:/2026/oracle_ai/frontend) với React 19, TypeScript, Vite 8, Tailwind CSS v4, Lucide Icons.
+  - Cấu hình [vite.config.ts](file:///d:/2026/oracle_ai/frontend/vite.config.ts) với `@` path alias và proxy chuyển tiếp `/api` sang FastAPI backend `http://localhost:8000` (hỗ trợ cả REST và WebSocket).
+  - Tích hợp `CORSMiddleware` trong backend FastAPI [db-copilot/src/db_copilot/api/app.py](file:///d:/2026/oracle_ai/db-copilot/src/db_copilot/api/app.py).
+  - Xây dựng 7 thành phần giao diện theo chuẩn Task 8.1 - 8.5:
+    1. [Navbar.tsx](file:///d:/2026/oracle_ai/frontend/src/components/Navbar.tsx): Hiển thị trạng thái Oracle 19c Thin Mode, MCP Gateway và chuyển đổi tabs.
+    2. [HealthScoreGauge.tsx](file:///d:/2026/oracle_ai/frontend/src/components/HealthScoreGauge.tsx): Đồng hồ đo điểm sức khỏe 0-100 với biểu đồ SVG tròn, phân nhóm chỉ số CBO & AWR.
+    3. [MetricsGrid.tsx](file:///d:/2026/oracle_ai/frontend/src/components/MetricsGrid.tsx): 5 thẻ chỉ số tức thời (Active Sessions, Blocking Contention, CPU%, Tablespace%, Invalid Objects).
+    4. [IncidentFeed.tsx](file:///d:/2026/oracle_ai/frontend/src/components/IncidentFeed.tsx): Bộ lọc mức độ nghiêm trọng, tìm kiếm tức thì, chuyển trạng thái và nút "Điều Tra AI" tự động nạp ngữ cảnh.
+    5. [InvestigationChat.tsx](file:///d:/2026/oracle_ai/frontend/src/components/InvestigationChat.tsx): Giao diện Copilot chat tương tác, timeline các bước MCP song song, thẻ kết luận chẩn đoán AI và gợi ý lệnh SQL khắc phục có nút copy nhanh.
+    6. [ExecutionPlanViewer.tsx](file:///d:/2026/oracle_ai/frontend/src/components/ExecutionPlanViewer.tsx): Cây phân cấp Oracle CBO Execution Plan làm nổi bật thao tác Full Table Scan và Cost cao.
+    7. [DailyReportViewer.tsx](file:///d:/2026/oracle_ai/frontend/src/components/DailyReportViewer.tsx): Trình xem báo cáo hàng ngày (Narrative Report) kèm chọn ngày và xuất PDF.
+  - Xây dựng [api.ts](file:///d:/2026/oracle_ai/frontend/src/services/api.ts) kết nối trực tiếp API Backend đồng thời tích hợp dữ liệu mô phỏng độc lập (standalone demo).
+  - Kiểm thử & Build:
+    - `npm run build`: Hoàn thành trong 714ms, 0 lỗi, 0 warning.
+    - `npm run lint` (oxlint): 0 errors, 0 warnings.
+    - `uv run ruff check .`: All checks passed!
+    - `uv run pytest`: 93/93 unit tests passed!
+- **Yêu Cầu Sửa Lại (Revision)**: Không.
+- **Đánh Giá & Hài Lòng**: ✅ Hoàn thành xuất sắc toàn bộ Frontend Web Dashboard Phase 3.8.
+
+---
+
+### #017 — Xử Lý Lỗi Vite HTTP Proxy /api/v1/reports/daily
+- **Thời gian**: 05/10/2026 21:50
+- **Prompt Người Dùng**: "http proxy error: /api/v1/reports/daily"
+- **AI Đặt Câu Hỏi / Làm Rõ**: Không cần làm rõ.
+- **User Phản Hồi / Quyết Định**: N/A.
+- **Kết Quả AI Tạo Ra**:
+  - Xác định nguyên nhân: Vite Dev Server proxy request `/api/...` sang Backend `http://localhost:8000`, nhưng tiến trình Backend chưa khởi chạy dẫn đến lỗi kết nối mạng `ECONNREFUSED`.
+  - Cập nhật cấu hình [vite.config.ts](file:///d:/2026/oracle_ai/frontend/vite.config.ts): Bổ sung `proxy.on('error')` để bắt lỗi và trả về HTTP 503 êm dịu, ngăn chặn Vite in cảnh báo crash/proxy error ra terminal.
+  - Cập nhật [api.ts](file:///d:/2026/oracle_ai/frontend/src/services/api.ts): Bổ sung parser cho endpoint `/api/v1/reports/daily` hỗ trợ cả cấu trúc Object đơn lẻ (`report_date`, `narrative`, `critical_count`) và cấu trúc Mảng.
+  - Kiểm tra linting (`oxlint`) và build (`vite build`): 0 warnings, 0 errors.
+- **Yêu Cầu Sửa Lại (Revision)**: Không.
+- **Đánh Giá & Hài Lòng**: ✅ Đã xử lý triệt để nguyên nhân và hướng dẫn user khởi chạy.
+
+---
+
+### #018 — Commit & Push Mã Nguồn Lên Git Repository
+- **Thời gian**: 05/10/2026 21:54
+- **Prompt Người Dùng**: "push git"
+- **AI Đặt Câu Hỏi / Làm Rõ**: Không cần làm rõ.
+- **User Phản Hồi / Quyết Định**: N/A.
+- **Kết Quả AI Tạo Ra**:
+  - Cập nhật `.gitignore` loại trừ `node_modules/` và các artifacts phụ.
+  - Stage toàn bộ thay đổi của Phase 3.8 Frontend Web Dashboard, tài liệu hợp nhất và cấu hình CORS backend.
+  - Thực hiện commit với message chuẩn hóa và push lên nhánh `main` của remote repository.
+- **Yêu Cầu Sửa Lại (Revision)**: Không.
+- **Đánh Giá & Hài Lòng**: ✅ Hoàn thành push git thành công.
+
+
+
 
