@@ -411,6 +411,31 @@ Mỗi mục nhật ký ghi nhận theo cấu trúc:
 - **Yêu Cầu Sửa Lại (Revision)**: Không.
 - **Đánh Giá & Hài Lòng**: ✅ Hoàn thành push git thành công.
 
+---
 
+### #019 — Chẩn đoán lỗi HTTP Proxy ECONNREFUSED /api/v1/health
+- **Thời gian**: 06/10/2026 15:21
+- **Prompt Người Dùng**: `kiêm tra xem http proxy error: /api/v1/health AggregateError [ECONNREFUSED]`
+- **AI Đặt Câu Hỏi / Làm Rõ**: Không cần làm rõ — chẩn đoán trực tiếp.
+- **User Phản Hồi / Quyết Định**: N/A.
+- **Kết Quả AI Tạo Ra**:
+  - Phân tích [vite.config.ts](file:///d:/2026/oracle_ai/frontend/vite.config.ts): Proxy `/api` → `http://localhost:8000` đã được cấu hình đúng và có error handler trả HTTP 503.
+  - Phát hiện **3 vấn đề gốc rễ**: (1) Backend FastAPI chưa chạy trên port 8000, (2) File `.env` chưa tồn tại trong `db-copilot/`, (3) PostgreSQL không lắng nghe trên port 5432.
+  - Hướng dẫn khắc phục theo thứ tự: tạo `.env` từ `.env.example` → khởi động PostgreSQL → chạy `uv run db-copilot`.
+- **Yêu Cầu Sửa Lại (Revision)**: Không.
+- **Đánh Giá & Hài Lòng**: ✅ Chẩn đoán đầy đủ, hướng dẫn rõ ràng.
 
+---
+
+### #020 — Tạo file .bat khởi động tự động tất cả dịch vụ khi bật máy
+- **Thời gian**: 06/10/2026 17:00
+- **Prompt Người Dùng**: `tạo một file .bat để khi bật máy hệ thống tự chạy các service oracle listener, backend, frontend và postgres`
+- **AI Đặt Câu Hỏi / Làm Rõ**: Kiểm tra tên service thực tế trên máy trước khi tạo file.
+- **User Phản Hồi / Quyết Định**: N/A (AI tự thu thập thông tin).
+- **Kết Quả AI Tạo Ra**:
+  - Phát hiện services: `postgresql-x64-18`, `OracleServiceORCL`, `OracleOraDB19Home1TNSListener`, `OracleOraDB19Home1TNSListenerKETNOITHUONG`.
+  - Tạo [start_all_services.bat](file:///d:/2026/oracle_ai/start_all_services.bat): Kiểm tra và khởi động 5 thành phần theo thứ tự (PostgreSQL → Oracle DB → TNS Listeners → Backend → Frontend), tự mở browser sau 12 giây.
+  - Tạo [register_startup_task.ps1](file:///d:/2026/oracle_ai/register_startup_task.ps1): Script PowerShell đăng ký Task Scheduler chạy bat file khi đăng nhập Windows, với `RunLevel Highest` để `net start` hoạt động.
+- **Yêu Cầu Sửa Lại (Revision)**: Không.
+- **Đánh Giá & Hài Lòng**: ✅ Hoàn thành.
 
